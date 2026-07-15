@@ -1,0 +1,85 @@
+# =====================================================
+# Python
+# =====================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+.python-version
+
+# =====================================================
+# Node.js / React
+# =====================================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp
+.pnp.js
+
+# =====================================================
+# Build outputs
+# =====================================================
+frontend/dist/
+frontend/build/
+backend/.coverage
+backend/htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# =====================================================
+# Environment & Secrets
+# =====================================================
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# =====================================================
+# Docker
+# =====================================================
+docker-compose.override.yml
+
+# =====================================================
+# NVIDIA / DeepStream / TensorRT
+# =====================================================
+ai-pipeline/models/detector/*.engine
+ai-pipeline/models/reid/*.engine
+ai-pipeline/models/**/*.onnx
+ai-pipeline/models/**/*.trt
+*.engine
+*.plan
+
+# =====================================================
+# IDE
+# =====================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# =====================================================
+# Monitoring data (local volumes)
+# =====================================================
+.data/
+prometheus_data/
+grafana_data/
+
+# =====================================================
+# Misc
+# =====================================================
+*.log
+tmp/
+temp/

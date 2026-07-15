@@ -1,0 +1,283 @@
+# =====================================================
+# Multi-Camera Person Tracking System
+# Docker Compose — Development Environment
+# =====================================================
+
+services:
+  # ---- Frontend (React + Vite) ----
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: mcpt-frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000/api/v1
+      - VITE_WS_URL=ws://localhost:8000/ws
+    depends_on:
+      - backend
+    networks:
+      - mcpt-network
+
+  # ---- Backend (FastAPI) ----
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: mcpt-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/alembic:/app/alembic
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    networks:
+      - mcpt-network
+
+  # ---- Celery Worker ----
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: mcpt-celery-worker
+    command: celery -A app.workers worker --loglevel=info --concurrency=4
+    volumes:
+      - ./backend/app:/app/app
+    env_file:
+      - .env
+    depends_on:
+      - backend
+      - redis
+    networks:
+      - mcpt-network
+
+  # ---- AI Pipeline (DeepStream) ----
+  ai-pipeline:
+    build:
+      context: ./ai-pipeline
+      dockerfile: Dockerfile.deepstream
+    container_name: mcpt-ai-pipeline
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6334
+      - MINIO_ENDPOINT=minio:9000
+    volumes:
+      - ./ai-pipeline/configs:/app/configs
+      - ./ai-pipeline/models:/app/models
+      - ./ai-pipeline/src:/app/src
+    depends_on:
+      - kafka
+      - qdrant
+      - minio
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - mcpt-network
+
+  # ---- PostgreSQL ----
+  postgres:
+    image: postgres:16-alpine
+    container_name: mcpt-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mcpt_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_in_production}
+      POSTGRES_DB: ${POSTGRES_DB:-mcpt_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mcpt_user}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mcpt-network
+
+  # ---- Redis ----
+  redis:
+    image: redis:7-alpine
+    container_name: mcpt-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mcpt-network
+
+  # ---- Apache Kafka ----
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.7.0
+    container_name: mcpt-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+    networks:
+      - mcpt-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.7.0
+    container_name: mcpt-kafka
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    depends_on:
+      - zookeeper
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - mcpt-network
+
+  # ---- Qdrant (Vector Database) ----
+  qdrant:
+    image: qdrant/qdrant:v1.12.1
+    container_name: mcpt-qdrant
+    ports:
+      - "6333:6333"   # REST API
+      - "6334:6334"   # gRPC
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: 6334
+    networks:
+      - mcpt-network
+
+  # ---- MinIO (Object Storage) ----
+  minio:
+    image: minio/minio:latest
+    container_name: mcpt-minio
+    ports:
+      - "9000:9000"   # API
+      - "9001:9001"   # Console
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mcpt-network
+
+  # ---- Monitoring: Prometheus ----
+  prometheus:
+    image: prom/prometheus:v2.54.0
+    container_name: mcpt-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=30d'
+    networks:
+      - mcpt-network
+
+  # ---- Monitoring: Grafana ----
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: mcpt-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/monitoring/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    networks:
+      - mcpt-network
+
+  # ---- Monitoring: Loki (Logs) ----
+  loki:
+    image: grafana/loki:3.1.0
+    container_name: mcpt-loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - mcpt-network
+
+  # ---- Monitoring: Jaeger (Tracing) ----
+  jaeger:
+    image: jaegertracing/all-in-one:1.60
+    container_name: mcpt-jaeger
+    ports:
+      - "16686:16686"  # UI
+      - "6831:6831/udp"  # Agent
+      - "14268:14268"  # Collector
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    networks:
+      - mcpt-network
+
+# ---- Volumes ----
+volumes:
+  postgres_data:
+  redis_data:
+  zookeeper_data:
+  kafka_data:
+  qdrant_data:
+  minio_data:
+  prometheus_data:
+  grafana_data:
+
+# ---- Networks ----
+networks:
+  mcpt-network:
+    driver: bridge
