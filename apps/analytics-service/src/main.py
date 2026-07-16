@@ -89,6 +89,12 @@ async def lifespan(app: FastAPI):
     
     logger.info("Starting up Analytics Service...")
     validate_internal_service_key()
+    
+    # Wait for database readiness before executing background tasks
+    from packages.shared.db_startup import wait_for_db
+    from infrastructure.persistence.database import DATABASE_URL
+    await wait_for_db(DATABASE_URL)
+    
     # Start Kafka consumer in background task (runs on the asyncio event loop)
     consumer_task = asyncio.create_task(start_kafka_consumer())
     

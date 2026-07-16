@@ -1,0 +1,60 @@
+# =====================================================
+# Kafka Topic Definitions
+# Multi-Camera Person Tracking System
+# =====================================================
+# Used by kafka-init service to pre-create topics at startup.
+# Format: name, partitions, replication_factor, retention_ms
+
+topics:
+
+  # ---- Primary Event Streams ----
+
+  - name: tracking-events
+    partitions: 6
+    replication_factor: 1
+    config:
+      retention.ms: 604800000       # 7 days
+      cleanup.policy: delete
+      min.insync.replicas: 1
+      compression.type: lz4
+      max.message.bytes: 5242880    # 5MB (for image crop payloads)
+
+  - name: alert-events
+    partitions: 3
+    replication_factor: 1
+    config:
+      retention.ms: 2592000000      # 30 days
+      cleanup.policy: delete
+      min.insync.replicas: 1
+      compression.type: lz4
+
+  - name: fire-detection-events
+    partitions: 3
+    replication_factor: 1
+    config:
+      retention.ms: 2592000000      # 30 days
+      cleanup.policy: delete
+      min.insync.replicas: 1
+
+  # ---- Dead Letter Queues ----
+
+  - name: tracking-events.DLQ
+    partitions: 1
+    replication_factor: 1
+    config:
+      retention.ms: 2592000000      # 30 days — long retention for debugging
+      cleanup.policy: delete
+
+  - name: alert-events.DLQ
+    partitions: 1
+    replication_factor: 1
+    config:
+      retention.ms: 2592000000
+      cleanup.policy: delete
+
+  - name: fire-detection-events.DLQ
+    partitions: 1
+    replication_factor: 1
+    config:
+      retention.ms: 2592000000
+      cleanup.policy: delete

@@ -1,142 +1,13 @@
 # =====================================================
 # Multi-Camera Person Tracking System
-# Docker Compose — Development Environment (Monorepo)
+# Docker Compose — Development / Staging Environment
 # =====================================================
 
 services:
-  # ---- React Frontend Dashboard ----
-  web:
-    build:
-      context: ./apps/web
-      dockerfile: Dockerfile
-    container_name: mcpt-web
-    ports:
-      - "5173:5173"
-    environment:
-      - VITE_API_BASE_URL=http://localhost:8000/api/v1
-      - VITE_WS_URL=ws://localhost:8000/ws
-    depends_on:
-      - gateway
-    networks:
-      - mcpt-network
 
-  # ---- API Gateway ----
-  gateway:
-    build:
-      context: ./apps/gateway
-      dockerfile: Dockerfile
-    container_name: mcpt-gateway
-    ports:
-      - "8000:8000"
-    env_file:
-      - .env
-    depends_on:
-      - auth-service
-      - camera-service
-      - search-service
-      - analytics-service
-    networks:
-      - mcpt-network
-
-  # ---- AI Pipeline (DeepStream) ----
-  ai-service:
-    build:
-      context: .
-      dockerfile: apps/ai-service/Dockerfile
-    container_name: mcpt-ai-service
-    runtime: nvidia
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=all
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - MINIO_ENDPOINT=minio:9000
-    volumes:
-      - ./models:/app/models
-      - ./datasets:/app/datasets
-    depends_on:
-      - kafka
-      - minio
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    networks:
-      - mcpt-network
-
-  # ---- Analytics Service (Clean Arch) ----
-  analytics-service:
-    build:
-      context: .
-      dockerfile: apps/analytics-service/Dockerfile
-    container_name: mcpt-analytics-service
-    ports:
-      - "8001:8001"
-    environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6333
-      - DATABASE_URL=postgresql+asyncpg://mcpt_user:change_me_in_production@postgres:5432/mcpt_db
-    depends_on:
-      postgres:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-      qdrant:
-        condition: service_started
-    networks:
-      - mcpt-network
-
-  # ---- Camera Service ----
-  camera-service:
-    build:
-      context: .
-      dockerfile: apps/camera-service/Dockerfile
-    container_name: mcpt-camera-service
-    ports:
-      - "8002:8002"
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://mcpt_user:change_me_in_production@postgres:5432/mcpt_db
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - mcpt-network
-
-  # ---- Search Service ----
-  search-service:
-    build:
-      context: .
-      dockerfile: apps/search-service/Dockerfile
-    container_name: mcpt-search-service
-    ports:
-      - "8003:8003"
-    environment:
-      - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6333
-    depends_on:
-      qdrant:
-        condition: service_started
-    networks:
-      - mcpt-network
-
-  # ---- Auth Service ----
-  auth-service:
-    build:
-      context: .
-      dockerfile: apps/auth-service/Dockerfile
-    container_name: mcpt-auth-service
-    ports:
-      - "8004:8004"
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://mcpt_user:change_me_in_production@postgres:5432/mcpt_db
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - mcpt-network
+  # ============================================================
+  # INFRASTRUCTURE LAYER
+  # ============================================================
 
   # ---- PostgreSQL ----
   postgres:
@@ -150,13 +21,17 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-mcpt_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Mount schema as initial SQL (only runs on first container creation)
+      - ./database/postgres/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mcpt_user}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mcpt_user} -d ${POSTGRES_DB:-mcpt_db}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
     networks:
       - mcpt-network
+    restart: unless-stopped
 
   # ---- Redis ----
   redis:
@@ -164,16 +39,19 @@ services:
     container_name: mcpt-redis
     ports:
       - "6379:6379"
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server /usr/local/etc/redis/redis.conf
     volumes:
       - redis_data:/data
+      - ./database/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 5s
     networks:
       - mcpt-network
+    restart: unless-stopped
 
   # ---- ZooKeeper ----
   zookeeper:
@@ -182,10 +60,13 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_MAX_CLIENT_CNXNS: 60
     volumes:
       - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_logs:/var/lib/zookeeper/log
     networks:
       - mcpt-network
+    restart: unless-stopped
 
   # ---- Apache Kafka ----
   kafka:
@@ -201,19 +82,23 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"   # Topics are explicitly managed
+      KAFKA_LOG_RETENTION_HOURS: 168             # 7 days default
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824        # 1GB segment
+      KAFKA_NUM_PARTITIONS: 3
     depends_on:
       - zookeeper
     healthcheck:
       test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
-      interval: 10s
+      interval: 15s
       timeout: 10s
-      retries: 5
-      start_period: 30s
+      retries: 10
+      start_period: 45s
     volumes:
       - kafka_data:/var/lib/kafka/data
     networks:
       - mcpt-network
+    restart: unless-stopped
 
   # ---- Qdrant (Vector Database) ----
   qdrant:
@@ -226,16 +111,24 @@ services:
       - qdrant_data:/qdrant/storage
     environment:
       QDRANT__SERVICE__GRPC_PORT: 6334
+      QDRANT__SERVICE__HTTP_PORT: 6333
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:6333/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     networks:
       - mcpt-network
+    restart: unless-stopped
 
   # ---- MinIO (Object Storage) ----
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
     container_name: mcpt-minio
     ports:
-      - "9000:9000"   # API
-      - "9001:9001"   # Console
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Console UI
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
@@ -243,29 +136,391 @@ services:
     volumes:
       - minio_data:/data
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
     networks:
       - mcpt-network
+    restart: unless-stopped
 
-  # ---- Monitoring: Prometheus ----
+  # ============================================================
+  # ONE-SHOT INIT JOBS (run once at startup, then exit)
+  # ============================================================
+
+  # ---- Database Schema Migration ----
+  db-migrate:
+    image: python:3.11-slim
+    container_name: mcpt-db-migrate
+    command: >
+      sh -c "pip install --quiet alembic asyncpg sqlalchemy &&
+             cd /migrations &&
+             alembic -c alembic.ini upgrade head"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-mcpt_user}:${POSTGRES_PASSWORD:-change_me_in_production}@postgres:5432/${POSTGRES_DB:-mcpt_db}
+    volumes:
+      - ./database/postgres/migrations:/migrations:ro
+      - ./packages:/migrations/packages:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - mcpt-network
+    restart: "no"
+
+  # ---- Database Seed ----
+  db-seed:
+    image: postgres:16-alpine
+    container_name: mcpt-db-seed
+    command: >
+      sh -c "
+        echo 'Running seed: users...' &&
+        psql $$DATABASE_URL -f /seed/seed_users.sql &&
+        echo 'Running seed: cameras...' &&
+        psql $$DATABASE_URL -f /seed/seed_cameras.sql &&
+        echo 'Seed complete.'
+      "
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mcpt_user}:${POSTGRES_PASSWORD:-change_me_in_production}@postgres:5432/${POSTGRES_DB:-mcpt_db}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-change_me_in_production}
+    volumes:
+      - ./database/postgres/seed:/seed:ro
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+    networks:
+      - mcpt-network
+    restart: "no"
+
+  # ---- Kafka Topic Init ----
+  kafka-init:
+    image: confluentinc/cp-kafka:7.7.0
+    container_name: mcpt-kafka-init
+    command: >
+      sh -c "
+        echo 'Waiting for Kafka...' &&
+        until kafka-topics --bootstrap-server kafka:9092 --list > /dev/null 2>&1; do sleep 2; done &&
+        echo 'Creating topics...' &&
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic tracking-events --partitions 6 --replication-factor 1 --config retention.ms=604800000 --config compression.type=lz4 &&
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic alert-events --partitions 3 --replication-factor 1 --config retention.ms=2592000000 &&
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic fire-detection-events --partitions 3 --replication-factor 1 --config retention.ms=2592000000 &&
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic tracking-events.DLQ --partitions 1 --replication-factor 1 --config retention.ms=2592000000 &&
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic alert-events.DLQ --partitions 1 --replication-factor 1 --config retention.ms=2592000000 &&
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic fire-detection-events.DLQ --partitions 1 --replication-factor 1 --config retention.ms=2592000000 &&
+        echo 'All Kafka topics created.'
+      "
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - mcpt-network
+    restart: "no"
+
+  # ---- Qdrant Collection Init ----
+  qdrant-init:
+    image: python:3.11-slim
+    container_name: mcpt-qdrant-init
+    command: >
+      sh -c "pip install --quiet qdrant-client &&
+             python /init/init_collections.py"
+    environment:
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: "6333"
+    volumes:
+      - ./database/qdrant:/init:ro
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    networks:
+      - mcpt-network
+    restart: "no"
+
+  # ---- MinIO Bucket Init ----
+  minio-init:
+    image: minio/mc:latest
+    container_name: mcpt-minio-init
+    environment:
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+    entrypoint: /bin/sh
+    command: /init/init.sh
+    volumes:
+      - ./database/minio/buckets:/init:ro
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - mcpt-network
+    restart: "no"
+
+  # ============================================================
+  # APPLICATION SERVICES
+  # ============================================================
+
+  # ---- Auth Service ----
+  auth-service:
+    build:
+      context: .
+      dockerfile: apps/auth-service/Dockerfile
+    container_name: mcpt-auth-service
+    ports:
+      - "8004:8004"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-mcpt_user}:${POSTGRES_PASSWORD:-change_me_in_production}@postgres:5432/${POSTGRES_DB:-mcpt_db}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      db-seed:
+        condition: service_completed_successfully
+    networks:
+      - mcpt-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8004/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ---- Camera Service ----
+  camera-service:
+    build:
+      context: .
+      dockerfile: apps/camera-service/Dockerfile
+    container_name: mcpt-camera-service
+    ports:
+      - "8002:8002"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-mcpt_user}:${POSTGRES_PASSWORD:-change_me_in_production}@postgres:5432/${POSTGRES_DB:-mcpt_db}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-seed:
+        condition: service_completed_successfully
+    networks:
+      - mcpt-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8002/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ---- Analytics Service (Clean Arch) ----
+  analytics-service:
+    build:
+      context: .
+      dockerfile: apps/analytics-service/Dockerfile
+    container_name: mcpt-analytics-service
+    ports:
+      - "8001:8001"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-mcpt_user}:${POSTGRES_PASSWORD:-change_me_in_production}@postgres:5432/${POSTGRES_DB:-mcpt_db}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: "6333"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      db-seed:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
+      qdrant-init:
+        condition: service_completed_successfully
+    networks:
+      - mcpt-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8001/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ---- Search Service ----
+  search-service:
+    build:
+      context: .
+      dockerfile: apps/search-service/Dockerfile
+    container_name: mcpt-search-service
+    ports:
+      - "8003:8003"
+    env_file:
+      - .env
+    environment:
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: "6333"
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      qdrant-init:
+        condition: service_completed_successfully
+    networks:
+      - mcpt-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8003/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ---- Notification Service ----
+  notification-service:
+    build:
+      context: .
+      dockerfile: apps/notification-service/Dockerfile
+    container_name: mcpt-notification-service
+    ports:
+      - "8005:8005"
+    env_file:
+      - .env
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      GATEWAY_ALERTS_URL: http://gateway:8000/api/v1/alerts/publish
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    networks:
+      - mcpt-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8005/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ---- API Gateway ----
+  gateway:
+    build:
+      context: ./apps/gateway
+      dockerfile: Dockerfile
+    container_name: mcpt-gateway
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      camera-service:
+        condition: service_healthy
+      analytics-service:
+        condition: service_healthy
+      search-service:
+        condition: service_healthy
+    networks:
+      - mcpt-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ---- React Frontend Dashboard ----
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: mcpt-web
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000/api/v1
+      VITE_WS_URL: ws://localhost:8000/ws
+    depends_on:
+      gateway:
+        condition: service_healthy
+    networks:
+      - mcpt-network
+    restart: unless-stopped
+
+  # ---- AI Pipeline (DeepStream) — GPU Required ----
+  ai-service:
+    build:
+      context: .
+      dockerfile: apps/ai-service/Dockerfile
+    container_name: mcpt-ai-service
+    runtime: nvidia
+    env_file:
+      - .env
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: all
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      MINIO_ENDPOINT: minio:9000
+    volumes:
+      - ./models:/app/models
+      - ./datasets:/app/datasets
+    depends_on:
+      kafka:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - mcpt-network
+    restart: unless-stopped
+    profiles:
+      - gpu   # only starts when: docker compose --profile gpu up
+
+  # ============================================================
+  # MONITORING STACK
+  # ============================================================
+
   prometheus:
     image: prom/prometheus:v2.54.0
     container_name: mcpt-prometheus
     ports:
       - "9090:9090"
     volumes:
-      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
     networks:
       - mcpt-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
 
-  # ---- Monitoring: Grafana ----
   grafana:
     image: grafana/grafana:11.2.0
     container_name: mcpt-grafana
@@ -274,49 +529,65 @@ services:
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
     depends_on:
       - prometheus
     networks:
       - mcpt-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
 
-  # ---- Monitoring: Loki (Logs) ----
   loki:
     image: grafana/loki:3.1.0
     container_name: mcpt-loki
     ports:
       - "3100:3100"
     command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki_data:/loki
     networks:
       - mcpt-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
 
-  # ---- Monitoring: Jaeger (Tracing) ----
   jaeger:
     image: jaegertracing/all-in-one:1.60
     container_name: mcpt-jaeger
     ports:
-      - "16686:16686"  # UI
-      - "6831:6831/udp"  # Agent
-      - "14268:14268"  # Collector
+      - "16686:16686"   # UI
+      - "6831:6831/udp" # Agent
+      - "14268:14268"   # Collector
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
     networks:
       - mcpt-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
 
-# ---- Volumes ----
+# ============================================================
+# VOLUMES
+# ============================================================
 volumes:
   postgres_data:
   redis_data:
   zookeeper_data:
+  zookeeper_logs:
   kafka_data:
   qdrant_data:
   minio_data:
   prometheus_data:
   grafana_data:
+  loki_data:
 
-# ---- Networks ----
+# ============================================================
+# NETWORKS
+# ============================================================
 networks:
   mcpt-network:
     driver: bridge

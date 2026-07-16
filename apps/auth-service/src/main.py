@@ -24,6 +24,11 @@ logger = logging.getLogger("auth_service")
 async def lifespan(app: FastAPI):
     """Lifecycle event context manager for handling startup and database shutdown."""
     logger.info("Starting up Auth Service...")
+    
+    # Wait for database readiness before starting
+    from packages.shared.db_startup import wait_for_db
+    await wait_for_db(auth_settings.DATABASE_URL)
+    
     yield
     logger.info("Shutting down Auth Service...")
     await engine.dispose()

@@ -32,6 +32,11 @@ async def lifespan(app: FastAPI):
     global health_checker, health_task
     
     logger.info("Starting up Camera Service...")
+    
+    # Wait for database readiness before executing background tasks
+    from packages.shared.db_startup import wait_for_db
+    await wait_for_db(settings.DATABASE_URL)
+    
     # Initialize and execute the background checker task
     health_checker = RtspHealthChecker(AsyncSessionLocal)
     health_task = asyncio.create_task(health_checker.start_monitoring())
