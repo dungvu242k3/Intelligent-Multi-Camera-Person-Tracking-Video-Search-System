@@ -6,7 +6,7 @@ from fastapi import FastAPI
 # Setup path to import packages correctly in monorepo
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../")))
 
-from apps.search-service.src.api.search_routes import router as search_router
+from api.search_routes import router as search_router
 
 logging.basicConfig(
     level=logging.INFO,
