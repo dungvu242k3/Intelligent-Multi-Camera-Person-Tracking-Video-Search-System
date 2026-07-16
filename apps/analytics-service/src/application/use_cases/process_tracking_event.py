@@ -85,7 +85,7 @@ class ProcessTrackingEventUseCase:
         
         # 1. If ReID embedding is available, perform vector similarity search
         if embedding and len(embedding) == 512:
-            matches = self.vector_store.search_similar(
+            matches = await self.vector_store.search_similar(
                 embedding=embedding,
                 limit=1,
                 score_threshold=0.75 # Match similarity threshold
@@ -96,7 +96,8 @@ class ProcessTrackingEventUseCase:
 
         # 2. Get existing or create new Person entity
         if person_id:
-            person = await self.person_repo.get_by_id(person_id)
+            # P0: Obtain transactional row lock (FOR UPDATE) to prevent race conditions during updates from other streams
+            person = await self.person_repo.get_by_id(person_id, for_update=True)
             if person:
                 person.update_appearance(timestamp)
                 await self.person_repo.upsert_person(person)
@@ -113,7 +114,7 @@ class ProcessTrackingEventUseCase:
 
             # Index the embedding in Qdrant for future ReID matches
             if embedding and len(embedding) == 512:
-                self.vector_store.upsert_embedding(
+                await self.vector_store.upsert_embedding(
                     person_id=person_id,
                     embedding=embedding,
                     metadata={"first_seen": timestamp.isoformat()}

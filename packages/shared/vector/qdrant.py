@@ -2,7 +2,7 @@ import os
 import logging
 import uuid
 from typing import List, Dict, Any
-from qdrant_client import QdrantClient
+from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models as qmodels
 
 logger = logging.getLogger("shared.qdrant")
@@ -13,17 +13,19 @@ class QdrantVectorStore:
         host = os.getenv("QDRANT_HOST", "localhost")
         port = int(os.getenv("QDRANT_PORT", "6333"))
         
-        self.client = QdrantClient(host=host, port=port)
+        self.client = AsyncQdrantClient(host=host, port=port)
         self.collection_name = "person_embeddings"
-        self._ensure_collection()
+        self._collection_checked = False
 
-    def _ensure_collection(self):
+    async def _ensure_collection(self):
+        if self._collection_checked:
+            return
         try:
-            collections = self.client.get_collections()
+            collections = await self.client.get_collections()
             exist = any(c.name == self.collection_name for c in collections.collections)
             
             if not exist:
-                self.client.create_collection(
+                await self.client.create_collection(
                     collection_name=self.collection_name,
                     vectors_config=qmodels.VectorParams(
                         size=512,
@@ -31,12 +33,14 @@ class QdrantVectorStore:
                     )
                 )
                 logger.info(f"Created Qdrant collection: {self.collection_name}")
+            self._collection_checked = True
         except Exception as e:
             logger.error(f"Failed to check/create Qdrant collection: {e}")
 
-    def upsert_embedding(self, person_id: uuid.UUID, embedding: List[float], metadata: Dict[str, Any]):
+    async def upsert_embedding(self, person_id: uuid.UUID, embedding: List[float], metadata: Dict[str, Any]):
+        await self._ensure_collection()
         try:
-            self.client.upsert(
+            await self.client.upsert(
                 collection_name=self.collection_name,
                 points=[
                     qmodels.PointStruct(
@@ -49,9 +53,10 @@ class QdrantVectorStore:
         except Exception as e:
             logger.error(f"Failed to upsert embedding in Qdrant: {e}")
 
-    def search_similar(self, embedding: List[float], limit: int = 5, score_threshold: float = 0.70) -> List[Dict[str, Any]]:
+    async def search_similar(self, embedding: List[float], limit: int = 5, score_threshold: float = 0.70) -> List[Dict[str, Any]]:
+        await self._ensure_collection()
         try:
-            results = self.client.search(
+            results = await self.client.search(
                 collection_name=self.collection_name,
                 query_vector=embedding,
                 limit=limit,

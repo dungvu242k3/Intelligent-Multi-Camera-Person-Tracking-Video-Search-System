@@ -12,7 +12,9 @@ class SqlAlchemyTrackingRepository:
         self.session = session
 
     async def save_event(self, event: TrackingEvent) -> TrackingEvent:
-        """Persists a new TrackingEvent entity."""
+        """Persists a new TrackingEvent entity.
+        Note: Transaction commits are managed by the orchestrator unit-of-work.
+        """
         model = TrackingEventModel(
             id=event.id,
             person_id=event.person_id,
@@ -26,7 +28,6 @@ class SqlAlchemyTrackingRepository:
             timestamp=event.timestamp
         )
         self.session.add(model)
-        await self.session.commit()
         return event
 
     async def get_trail_by_person_id(self, person_id: uuid.UUID) -> List[TrackingEvent]:
