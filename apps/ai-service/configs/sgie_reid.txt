@@ -1,0 +1,19 @@
+[property]
+gpu-id=0
+# OSNet input normalization: scale by 1/255
+net-scale-factor=0.0039215697906911373
+model-color-format=0
+# OSNet ReID engine path
+model-engine-file=../../models/tensorrt/osnet_x025_reid_fp16.engine
+onnx-file=../../models/reid/osnet_x025_reid.onnx
+batch-size=16
+network-mode=2 # FP16
+network-type=1 # Classifier / Feature Extractor
+gie-unique-id=2
+# Run on-demand: Operate only on outputs of Primary GIE (ID 1)
+operate-on-gie-id=1
+# Operate only on Class ID 0 (person) from the PGIE
+operate-on-class-ids=0
+
+# Output layer name to extract embeddings from (usually features/output)
+output-blob-names=features

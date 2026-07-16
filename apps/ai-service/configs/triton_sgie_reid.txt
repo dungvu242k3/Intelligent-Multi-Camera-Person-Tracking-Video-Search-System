@@ -1,0 +1,31 @@
+infer_config {
+  unique_id: 2
+  gpu_ids: [0]
+  max_batch_size: 64
+  # Set target unique ID 1 to run on PGIE output
+  operate_on_gie_id: 1
+  # Run only on Class ID 0 (person)
+  operate_on_class_ids: [0]
+  
+  backend {
+    triton {
+      model_name: "reid"
+      model_repo {
+        url: "/app/models"
+      }
+    }
+  }
+
+  preprocess {
+    network_format: IMAGE_FORMAT_RGB
+    tensor_order: TENSOR_ORDER_NCHW
+    maintain_aspect_ratio: false # OSNet crops are resized strictly to 256x128
+    scale_factor: 0.0039215697906911373
+    frame_scaling_filter: FILTER_BILINEAR
+  }
+
+  postprocess {
+    # ReID is a feature extractor (outputs raw embedding tensor)
+    other {}
+  }
+}

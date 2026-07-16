@@ -1,5 +1,5 @@
 # =====================================================
-# Python
+# Python / FastAPI
 # =====================================================
 __pycache__/
 *.py[cod]
@@ -14,9 +14,13 @@ build/
 venv/
 env/
 .python-version
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
 
 # =====================================================
-# Node.js / React
+# Node.js / React (Monorepo)
 # =====================================================
 node_modules/
 npm-debug.log*
@@ -24,16 +28,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnp
 .pnp.js
-
-# =====================================================
-# Build outputs
-# =====================================================
-frontend/dist/
-frontend/build/
-backend/.coverage
-backend/htmlcov/
-.pytest_cache/
-.mypy_cache/
+apps/web/dist/
+apps/web/build/
+.turbo/
 
 # =====================================================
 # Environment & Secrets
@@ -43,24 +40,73 @@ backend/htmlcov/
 .env.*.local
 *.pem
 *.key
+credentials.json
 
 # =====================================================
-# Docker
+# Docker & Local Database Volumes
 # =====================================================
 docker-compose.override.yml
+postgres_data/
+redis_data/
+zookeeper_data/
+kafka_data/
+qdrant_data/
+minio_data/
+.data/
 
 # =====================================================
-# NVIDIA / DeepStream / TensorRT
+# AI/ML Models (Root models/)
 # =====================================================
-ai-pipeline/models/detector/*.engine
-ai-pipeline/models/reid/*.engine
-ai-pipeline/models/**/*.onnx
-ai-pipeline/models/**/*.trt
+# Ignore all large model binary weights globally
+*.pt
+*.pth
+*.onnx
 *.engine
 *.plan
+*.trt
+*.pb
+*.weights
+
+# Specifically ignore model checkpoints and weights under models/
+models/checkpoints/
+models/yolo/**/*.pt
+models/yolo/**/*.onnx
+models/yolo/**/*.engine
+models/reid/**/*.pt
+models/reid/**/*.onnx
+models/reid/**/*.engine
+models/tensorrt/
+
+# DO NOT ignore model configs, text files, and READMEs
+!models/configs/
+!models/configs/**/*.yaml
+!models/configs/**/*.txt
+!models/scripts/
+!models/scripts/**/*.py
+!models/README.md
 
 # =====================================================
-# IDE
+# Datasets (Root datasets/)
+# =====================================================
+# Ignore all raw/processed images, videos, and labels
+datasets/raw/**/*
+datasets/processed/**/*
+datasets/annotations/**/*
+datasets/training/**/*
+datasets/validation/**/*
+
+# Keep folder structures by not ignoring .gitkeep files
+!datasets/**/.gitkeep
+!datasets/README.md
+
+# =====================================================
+# Monitoring & Metrics
+# =====================================================
+prometheus_data/
+grafana_data/
+
+# =====================================================
+# IDEs & System files
 # =====================================================
 .vscode/
 .idea/
@@ -71,14 +117,7 @@ ai-pipeline/models/**/*.trt
 Thumbs.db
 
 # =====================================================
-# Monitoring data (local volumes)
-# =====================================================
-.data/
-prometheus_data/
-grafana_data/
-
-# =====================================================
-# Misc
+# Log files & Temporary folders
 # =====================================================
 *.log
 tmp/

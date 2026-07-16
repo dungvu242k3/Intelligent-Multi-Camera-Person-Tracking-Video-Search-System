@@ -1,0 +1,35 @@
+[project]
+name = "analytics-service"
+version = "1.0.0"
+description = "Microservice consuming AI pipeline tracking telemetry events to update PostgreSQL and Qdrant galleries"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
+    "sqlalchemy>=2.0.0",
+    "asyncpg>=0.29.0",
+    "confluent-kafka>=2.4.0",
+    "qdrant-client>=1.12.0",
+    "pydantic>=2.7.0",
+    "httpx>=0.27.0"
+]
+
+[tool.poetry]
+name = "analytics-service"
+version = "1.0.0"
+description = ""
+authors = ["Dung Vu <dungvu@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.115.0"
+uvicorn = "^0.30.0"
+sqlalchemy = "^2.0.0"
+asyncpg = "^0.29.0"
+confluent-kafka = "^2.4.0"
+qdrant-client = "^1.12.0"
+pydantic = "^2.7.0"
+httpx = "^0.27.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

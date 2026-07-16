@@ -1,0 +1,37 @@
+# =====================================================================
+# DeepStream Pipeline Configuration using Triton Inference Server
+# =====================================================================
+
+source-list:
+  - uri: "rtsp://localhost:8554/stream0"
+  - uri: "rtsp://localhost:8554/stream1"
+
+streammux:
+  gpu-id: 0
+  live-source: 1
+  batch-size: 2
+  batched-push-timeout: 40000
+  width: 1920
+  height: 1080
+
+# Primary Inference: YOLOv8 via nvinferserver (Triton)
+primary-gie:
+  plugin-type: 1 # 0: nvinfer, 1: nvinferserver
+  config-file-path: "apps/ai-service/configs/triton_pgie_yolov8.txt"
+  unique-id: 1
+
+# Multi-Object Tracker: NvDCF
+tracker:
+  enable: 1
+  tracker-width: 640
+  tracker-height: 384
+  ll-lib-file: "/opt/nvidia/deepstream/deepstream/lib/libnvds_nvmultiobjecttracker.so"
+  ll-config-file: "apps/ai-service/configs/tracker_config.yml"
+
+# Secondary Inference: ReID via nvinferserver (Triton)
+secondary-gie:
+  plugin-type: 1 # nvinferserver
+  config-file-path: "apps/ai-service/configs/triton_sgie_reid.txt"
+  unique-id: 2
+  operate-on-gie-id: 1
+  operate-on-class-ids: [0] # Only run ReID on person

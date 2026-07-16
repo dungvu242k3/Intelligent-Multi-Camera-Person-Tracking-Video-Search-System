@@ -1,0 +1,33 @@
+name: "reid"
+platform: "tensorrt_plan"
+max_batch_size: 64
+
+# Dynamic batching is critical for ReID because it processes cropped person images 
+# dynamically generated from different streams at irregular times.
+dynamic_batching {
+  max_queue_delay_microseconds: 10000 # 10ms delay to batch crops
+}
+
+input [
+  {
+    name: "input"
+    data_type: TYPE_FP32
+    format: FORMAT_NCHW
+    dims: [ 3, 256, 128 ] # Standard OSNet input dimensions
+  }
+]
+
+output [
+  {
+    name: "features"
+    data_type: TYPE_FP32
+    dims: [ 512 ] # 512-dim embedding vector
+  }
+]
+
+instance_group [
+  {
+    count: 2
+    kind: KIND_GPU
+  }
+]

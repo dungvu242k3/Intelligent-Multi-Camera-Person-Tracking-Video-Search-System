@@ -1,0 +1,32 @@
+name: "yolov8"
+platform: "tensorrt_plan"
+max_batch_size: 16
+
+# Enable dynamic batching for maximum GPU utilization across multiple cameras
+dynamic_batching {
+  max_queue_delay_microseconds: 5000 # 5ms delay to wait for batching
+}
+
+input [
+  {
+    name: "images"
+    data_type: TYPE_FP32
+    format: FORMAT_NCHW
+    dims: [ 3, 640, 640 ]
+  }
+]
+
+output [
+  {
+    name: "output0"
+    data_type: TYPE_FP32
+    dims: [ 84, 8400 ] # YOLOv8 output: 4 bbox coordinates + 80 class scores
+  }
+]
+
+instance_group [
+  {
+    count: 2 # Number of parallel model instances on the GPU
+    kind: KIND_GPU
+  }
+]

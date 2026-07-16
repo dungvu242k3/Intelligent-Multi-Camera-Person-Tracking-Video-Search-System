@@ -1,0 +1,22 @@
+[property]
+gpu-id=0
+net-scale-factor=0.0039215697906911373
+# YOLOv8n has input size 640x640, channel-order=0 (RGB)
+model-color-format=0
+# Path to the TensorRT engine compiled for GTX 1650
+model-engine-file=../../models/tensorrt/person_fire_objects_fp16.engine
+# Alternatively, path to the ONNX file (DeepStream will compile it on first run)
+onnx-file=../../models/yolo/person_fire_objects.onnx
+# Class labels file path
+labelfile-path=../../models/configs/yolo_labels.txt
+batch-size=4
+network-mode=2 # 0: FP32, 1: INT8, 2: FP16
+num-detected-classes=4 # 0: person, 1: fire, 2: smoke, 3: object
+interval=0
+gie-unique-id=1
+network-type=0 # Detector
+
+[class-attrs-all]
+pre-threshold=0.25
+eps=0.2
+group-threshold=1
