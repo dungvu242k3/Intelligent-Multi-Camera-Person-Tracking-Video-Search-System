@@ -2,8 +2,8 @@ import logging
 import numpy as np
 import pyds
 from datetime import datetime
-from apps.ai-service.src.events.kafka_producer import KafkaEventProducer
-from apps.ai-service.src.storage.crop_saver import CropSaver
+from packages.shared.messaging.kafka import KafkaEventProducer
+from storage.crop_saver import CropSaver
 
 logger = logging.getLogger("ai_service.probes")
 

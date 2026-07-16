@@ -8,11 +8,11 @@ from typing import List
 # Setup path to import packages correctly in monorepo
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../")))
 
-from apps.ai-service.src.pipelines.deepstream_pipeline import DeepStreamPipeline
-from apps.ai-service.src.plugins.probe_callbacks import DeepStreamProbeCallbacks
-from apps.ai-service.src.events.kafka_producer import KafkaEventProducer
-from apps.ai-service.src.storage.minio_client import MinioStorageClient
-from apps.ai-service.src.storage.crop_saver import CropSaver
+from pipelines.deepstream_pipeline import DeepStreamPipeline
+from plugins.probe_callbacks import DeepStreamProbeCallbacks
+from packages.shared.messaging.kafka import KafkaEventProducer
+from packages.shared.storage.minio import MinioStorageClient
+from storage.crop_saver import CropSaver
 
 # Initialize structured logger
 logging.basicConfig(
