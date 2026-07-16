@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Radio, Activity, Globe } from 'lucide-react';
+import { Radio, Activity, Globe, LogOut } from 'lucide-react';
 import { useTranslation } from '../../hooks/useTranslation.ts';
+import { useAuthStore } from '../../stores/authStore.ts';
 
 export default function Header() {
   const [wsConnected, setWsConnected] = useState(false);
   const { locale, setLocale, t } = useTranslation();
+  const { user, logout } = useAuthStore();
 
   useEffect(() => {
     // Check gateway websocket connectivity status
@@ -39,7 +41,7 @@ export default function Header() {
         <span style={styles.title}>{t('header.controlCenter')}</span>
       </div>
 
-      {/* Connection Badges */}
+      {/* Connection Badges & User Info */}
       <div style={styles.badges}>
         {/* Language Toggle Switch */}
         <button 
@@ -58,6 +60,26 @@ export default function Header() {
             {wsConnected ? t('header.realtimeConnected') : t('header.realtimeOffline')}
           </span>
         </div>
+
+        {/* Operator Profile and Logout Wrapper */}
+        {user && (
+          <div style={styles.userContainer}>
+            <div style={styles.userInfo}>
+              <span style={styles.userName}>{user.full_name}</span>
+              <span style={styles.userRole}>
+                {user.role_id === 1 ? t('auth.roleAdmin') : t('auth.roleOperator')}
+              </span>
+            </div>
+            <button 
+              type="button" 
+              onClick={logout} 
+              style={styles.logoutBtn} 
+              title={t('auth.logout')}
+            >
+              <LogOut size={15} color="var(--color-danger)" />
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );
@@ -94,7 +116,7 @@ const styles: Record<string, React.CSSProperties> = {
   badges: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
+    gap: '16px',
   },
   langBtn: {
     display: 'flex',
@@ -150,5 +172,41 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '12px',
     fontWeight: 600,
     fontFamily: 'var(--font-body)',
+  },
+  userContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    paddingLeft: '16px',
+    borderLeft: '1px solid var(--color-border)',
+  },
+  userInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+  },
+  userName: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: 'var(--color-text)',
+  },
+  userRole: {
+    fontSize: '10px',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+  },
+  logoutBtn: {
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    padding: '4px',
+    borderRadius: '4px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'background-color 150ms ease',
+    backgroundColor: 'rgba(239, 68, 68, 0.05)',
   },
 };
