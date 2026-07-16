@@ -54,12 +54,13 @@ RUN pip3 install --upgrade pip && \
 WORKDIR /app
 
 # Copy and install Python service requirements
-COPY requirements.txt .
+COPY apps/ai-service/requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt
 
 # Copy monorepo packages/contracts and AI service source code
-COPY src/ /app/apps/ai-service/src/
-COPY configs/ /app/apps/ai-service/configs/
+COPY apps/ai-service/src/ /app/apps/ai-service/src/
+COPY apps/ai-service/configs/ /app/apps/ai-service/configs/
+COPY packages/ /app/packages/
 
 # Add python path
 ENV PYTHONPATH=/app

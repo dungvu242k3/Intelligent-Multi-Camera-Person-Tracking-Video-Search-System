@@ -1,94 +1,60 @@
 # =====================================================
 # Multi-Camera Person Tracking System
-# Docker Compose — Development Environment
+# Docker Compose — Development Environment (Monorepo)
 # =====================================================
 
 services:
-  # ---- Frontend (React + Vite) ----
-  frontend:
+  # ---- React Frontend Dashboard ----
+  web:
     build:
-      context: ./frontend
+      context: ./apps/web
       dockerfile: Dockerfile
-      target: development
-    container_name: mcpt-frontend
+    container_name: mcpt-web
     ports:
       - "5173:5173"
-    volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/public:/app/public
     environment:
       - VITE_API_BASE_URL=http://localhost:8000/api/v1
       - VITE_WS_URL=ws://localhost:8000/ws
     depends_on:
-      - backend
+      - gateway
     networks:
       - mcpt-network
 
-  # ---- Backend (FastAPI) ----
-  backend:
+  # ---- API Gateway ----
+  gateway:
     build:
-      context: ./backend
+      context: ./apps/gateway
       dockerfile: Dockerfile
-      target: development
-    container_name: mcpt-backend
+    container_name: mcpt-gateway
     ports:
       - "8000:8000"
-    volumes:
-      - ./backend/app:/app/app
-      - ./backend/alembic:/app/alembic
     env_file:
       - .env
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-      qdrant:
-        condition: service_started
-    networks:
-      - mcpt-network
-
-  # ---- Celery Worker ----
-  celery-worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-      target: development
-    container_name: mcpt-celery-worker
-    command: celery -A app.workers worker --loglevel=info --concurrency=4
-    volumes:
-      - ./backend/app:/app/app
-    env_file:
-      - .env
-    depends_on:
-      - backend
-      - redis
+      - auth-service
+      - camera-service
+      - search-service
+      - analytics-service
     networks:
       - mcpt-network
 
   # ---- AI Pipeline (DeepStream) ----
-  ai-pipeline:
+  ai-service:
     build:
-      context: ./ai-pipeline
-      dockerfile: Dockerfile.deepstream
-    container_name: mcpt-ai-pipeline
+      context: .
+      dockerfile: apps/ai-service/Dockerfile
+    container_name: mcpt-ai-service
     runtime: nvidia
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6334
       - MINIO_ENDPOINT=minio:9000
     volumes:
-      - ./ai-pipeline/configs:/app/configs
-      - ./ai-pipeline/models:/app/models
-      - ./ai-pipeline/src:/app/src
+      - ./models:/app/models
+      - ./datasets:/app/datasets
     depends_on:
       - kafka
-      - qdrant
       - minio
     deploy:
       resources:
@@ -97,6 +63,78 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    networks:
+      - mcpt-network
+
+  # ---- Analytics Service (Clean Arch) ----
+  analytics-service:
+    build:
+      context: .
+      dockerfile: apps/analytics-service/Dockerfile
+    container_name: mcpt-analytics-service
+    ports:
+      - "8001:8001"
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - DATABASE_URL=postgresql+asyncpg://mcpt_user:change_me_in_production@postgres:5432/mcpt_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    networks:
+      - mcpt-network
+
+  # ---- Camera Service ----
+  camera-service:
+    build:
+      context: .
+      dockerfile: apps/camera-service/Dockerfile
+    container_name: mcpt-camera-service
+    ports:
+      - "8002:8002"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://mcpt_user:change_me_in_production@postgres:5432/mcpt_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - mcpt-network
+
+  # ---- Search Service ----
+  search-service:
+    build:
+      context: .
+      dockerfile: apps/search-service/Dockerfile
+    container_name: mcpt-search-service
+    ports:
+      - "8003:8003"
+    environment:
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+    depends_on:
+      qdrant:
+        condition: service_started
+    networks:
+      - mcpt-network
+
+  # ---- Auth Service ----
+  auth-service:
+    build:
+      context: .
+      dockerfile: apps/auth-service/Dockerfile
+    container_name: mcpt-auth-service
+    ports:
+      - "8004:8004"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://mcpt_user:change_me_in_production@postgres:5432/mcpt_db
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - mcpt-network
 
@@ -137,7 +175,7 @@ services:
     networks:
       - mcpt-network
 
-  # ---- Apache Kafka ----
+  # ---- ZooKeeper ----
   zookeeper:
     image: confluentinc/cp-zookeeper:7.7.0
     container_name: mcpt-zookeeper
@@ -149,6 +187,7 @@ services:
     networks:
       - mcpt-network
 
+  # ---- Apache Kafka ----
   kafka:
     image: confluentinc/cp-kafka:7.7.0
     container_name: mcpt-kafka
@@ -218,7 +257,7 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ./infra/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -237,7 +276,7 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./infra/monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
     depends_on:
       - prometheus
     networks:

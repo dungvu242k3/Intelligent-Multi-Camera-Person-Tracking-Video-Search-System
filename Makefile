@@ -1,11 +1,11 @@
 # =====================================================
 # Intelligent Multi-Camera Person Tracking System
-# Makefile — Common Development Commands
+# Makefile — Common Development Commands (Monorepo)
 # =====================================================
 
 .PHONY: help dev-up dev-down dev-logs dev-restart \
-        build test lint format migrate \
-        proto clean
+        build test lint format db-migrate db-migration db-rollback \
+        clean gpu-status
 
 # Default target
 help: ## Show this help message
@@ -17,16 +17,19 @@ help: ## Show this help message
 
 # ---- Development Environment ----
 
-dev-up: ## Start all services in dev mode
+dev-up: ## Start all services in docker compose dev mode
 	docker compose up -d
 	@echo "\n✅ Services started. Access:"
-	@echo "   Frontend:    http://localhost:5173"
-	@echo "   Backend API: http://localhost:8000/docs"
-	@echo "   Grafana:     http://localhost:3001"
-	@echo "   MinIO:       http://localhost:9001"
-	@echo "   Qdrant:      http://localhost:6333/dashboard"
+	@echo "   Frontend Web:      http://localhost:5173"
+	@echo "   API Gateway:       http://localhost:8000"
+	@echo "   Analytics API:     http://localhost:8001/docs"
+	@echo "   Camera Service:    http://localhost:8002/docs"
+	@echo "   Search Service:    http://localhost:8003/docs"
+	@echo "   MinIO Console:     http://localhost:9001"
+	@echo "   Grafana Metrics:   http://localhost:3001"
+	@echo "   Qdrant Dashboard:  http://localhost:6333/dashboard"
 
-dev-down: ## Stop all services
+dev-down: ## Stop all docker compose services
 	docker compose down
 
 dev-restart: ## Restart all services
@@ -35,94 +38,62 @@ dev-restart: ## Restart all services
 dev-logs: ## Follow logs for all services
 	docker compose logs -f
 
-dev-logs-backend: ## Follow backend logs
-	docker compose logs -f backend
+dev-logs-ai: ## Follow logs for the AI pipeline service
+	docker compose logs -f ai-service
 
-dev-logs-ai: ## Follow AI pipeline logs
-	docker compose logs -f ai-pipeline
+dev-logs-analytics: ## Follow logs for the Analytics service
+	docker compose logs -f analytics-service
+
+dev-logs-camera: ## Follow logs for the Camera service
+	docker compose logs -f camera-service
 
 # ---- Build ----
 
-build: ## Build all production Docker images
-	docker compose -f docker-compose.yml -f docker-compose.prod.yml build
-
-build-backend: ## Build backend image only
-	docker build -t mcpt-backend:latest ./backend
-
-build-frontend: ## Build frontend image only
-	docker build -t mcpt-frontend:latest ./frontend
-
-build-ai: ## Build AI pipeline image only
-	docker build -t mcpt-ai-pipeline:latest -f ./ai-pipeline/Dockerfile.deepstream ./ai-pipeline
+build: ## Build all monorepo Docker images
+	docker compose build
 
 # ---- Testing ----
 
-test: test-backend test-frontend ## Run all tests
+test: ## Run unit tests across all microservices
+	@echo "Running tests in Python backend services..."
+	python -m pytest -o pythonpath=src apps/analytics-service/tests/
+	python -m pytest -o pythonpath=src apps/camera-service/tests/
 
-test-backend: ## Run backend tests
-	cd backend && python -m pytest tests/ -v --cov=app --cov-report=term-missing
+test-ai: ## Run AI pipeline GStreamer tests
+	python -m pytest -o pythonpath=apps/ai-service/src apps/ai-service/tests/
 
-test-frontend: ## Run frontend tests
-	cd frontend && npm run test
-
-test-ai: ## Run AI pipeline tests
-	cd ai-pipeline && python -m pytest tests/ -v
+test-web: ## Run frontend React unit tests
+	cd apps/web && npm run test
 
 # ---- Code Quality ----
 
-lint: lint-backend lint-frontend ## Run all linters
+lint: ## Lint check python backend and react codebases
+	flake8 apps/ packages/
+	cd apps/web && npm run lint
 
-lint-backend: ## Lint backend code
-	cd backend && python -m ruff check app/ tests/
-	cd backend && python -m mypy app/ --ignore-missing-imports
+format: ## Auto-format python and React frontend codebases
+	black apps/ packages/
+	cd apps/web && npm run format
 
-lint-frontend: ## Lint frontend code
-	cd frontend && npm run lint
+# ---- Database Migrations ----
 
-format: format-backend format-frontend ## Format all code
+db-migrate: ## Run alembic database migrations to upgrade to head
+	cd database/postgres/migrations && alembic upgrade head
 
-format-backend: ## Format backend code
-	cd backend && python -m ruff format app/ tests/
+db-migration: ## Create a new migration revision (usage: make db-migration MSG="create cameras table")
+	cd database/postgres/migrations && alembic revision --autogenerate -m "$(MSG)"
 
-format-frontend: ## Format frontend code
-	cd frontend && npm run format
-
-# ---- Database ----
-
-migrate: ## Run database migrations
-	cd backend && python -m alembic upgrade head
-
-migrate-create: ## Create a new migration (usage: make migrate-create MSG="add cameras table")
-	cd backend && python -m alembic revision --autogenerate -m "$(MSG)"
-
-migrate-rollback: ## Rollback last migration
-	cd backend && python -m alembic downgrade -1
-
-seed: ## Seed database with test data
-	cd backend && python -m app.scripts.seed_db
-
-# ---- Protobuf ----
-
-proto: ## Generate protobuf code from .proto files
-	python -m grpc_tools.protoc \
-		-I shared/proto \
-		--python_out=backend/app/generated \
-		--grpc_python_out=backend/app/generated \
-		--pyi_out=backend/app/generated \
-		shared/proto/*.proto
+db-rollback: ## Rollback the last database migration revision
+	cd database/postgres/migrations && alembic downgrade -1
 
 # ---- Utilities ----
 
-clean: ## Clean build artifacts and caches
+clean: ## Clean Python caches and Node build assets
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name .mypy_cache -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name node_modules -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name dist -exec rm -rf {} + 2>/dev/null || true
-	rm -rf frontend/dist backend/htmlcov backend/.coverage
 
-gpu-status: ## Show NVIDIA GPU status
+gpu-status: ## Show NVIDIA GPU status metrics
 	nvidia-smi
-
-docker-prune: ## Prune unused Docker resources
-	docker system prune -af --volumes
