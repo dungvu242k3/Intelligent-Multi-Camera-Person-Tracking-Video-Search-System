@@ -361,6 +361,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '14px',
     outline: 'none',
     transition: 'all 200ms ease',
+    fontFamily: 'inherit',
   },
   eyeBtn: {
     position: 'absolute',
@@ -379,6 +380,10 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '14px',
     fontWeight: 600,
     marginTop: '6px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontFamily: 'inherit',
   },
   footer: {
     display: 'flex',
