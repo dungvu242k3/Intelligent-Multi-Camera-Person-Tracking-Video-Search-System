@@ -14,6 +14,9 @@ class GatewaySettings(BaseSettings):
         "change_this_to_a_secure_256_bit_key_in_production_environment_12345"
     )
     JWT_ALGORITHM: str = "HS256"
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    RATE_LIMIT_REQUESTS_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_REQUESTS_PER_MINUTE", "60"))
+    RATE_LIMIT_ENABLED: bool = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
     SERVICE_NAME: str = "api-gateway"
 
     class Config:
