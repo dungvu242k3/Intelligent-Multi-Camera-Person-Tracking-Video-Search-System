@@ -10,6 +10,7 @@ import {
   Legend 
 } from 'recharts';
 import { Download, CheckCircle, Clock, Eye, AlertTriangle } from 'lucide-react';
+import { useTranslation } from '../../../shared/hooks/useTranslation.ts';
 
 interface CropDetail {
   id: string;
@@ -41,24 +42,32 @@ interface TestResultsProps {
 }
 
 export default function TestResults({ summary, timelineData, crops, onDownloadReport }: TestResultsProps) {
+  const { t } = useTranslation();
+
   return (
     <div style={styles.container}>
       {/* Success Banner */}
       <div style={styles.successBanner}>
         <CheckCircle size={24} color="var(--color-success)" />
         <div style={styles.bannerText}>
-          <div style={styles.bannerHeading}>Analysis Completed Successfully</div>
-          <div style={styles.bannerSub}>Processed {summary.totalFrames} frames in {summary.elapsedSeconds.toFixed(1)}s (Speed: {summary.fps.toFixed(1)} FPS)</div>
+          <div style={styles.bannerHeading}>{t('vtest.results.completed')}</div>
+          <div style={styles.bannerSub}>
+            {t('vtest.results.processed', { 
+              frames: summary.totalFrames, 
+              secs: summary.elapsedSeconds.toFixed(1), 
+              fps: summary.fps.toFixed(1) 
+            })}
+          </div>
         </div>
         <button type="button" onClick={onDownloadReport} className="btn-primary" style={styles.downloadBtn}>
           <Download size={16} />
-          <span>Export JSON</span>
+          <span>{t('vtest.exportJson')}</span>
         </button>
       </div>
 
       {/* Charts Grid */}
       <div style={styles.section}>
-        <h3 style={styles.sectionTitle}>Detection Timeline Distribution</h3>
+        <h3 style={styles.sectionTitle}>{t('vtest.results.chartTitle')}</h3>
         <div className="card" style={styles.chartCard}>
           <ResponsiveContainer width="100%" height={320}>
             <AreaChart data={timelineData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -94,7 +103,7 @@ export default function TestResults({ summary, timelineData, crops, onDownloadRe
 
       {/* Crops Gallery Section */}
       <div style={styles.section}>
-        <h3 style={styles.sectionTitle}>Keyframe Detections Gallery</h3>
+        <h3 style={styles.sectionTitle}>{t('vtest.results.galleryTitle')}</h3>
         <div style={styles.cropsGrid}>
           {crops.map((crop) => (
             <div key={crop.id} style={styles.cropCard}>
@@ -118,11 +127,11 @@ export default function TestResults({ summary, timelineData, crops, onDownloadRe
               <div style={styles.cropMeta}>
                 <div style={styles.cropTime}>
                   <Clock size={12} />
-                  <span>Time: {crop.timestamp}</span>
+                  <span>{t('vtest.results.time')}: {crop.timestamp}</span>
                 </div>
                 <div style={styles.cropConf}>
                   <Eye size={12} />
-                  <span>Confidence: {(crop.confidence * 100).toFixed(1)}%</span>
+                  <span>{t('vtest.results.confidence')}: {(crop.confidence * 100).toFixed(1)}%</span>
                 </div>
               </div>
             </div>
@@ -130,7 +139,7 @@ export default function TestResults({ summary, timelineData, crops, onDownloadRe
           {crops.length === 0 && (
             <div style={styles.emptyGallery}>
               <AlertTriangle size={28} color="var(--color-text-secondary)" />
-              <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>No keyframe object crops captured.</span>
+              <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>{t('vtest.results.emptyGallery')}</span>
             </div>
           )}
         </div>

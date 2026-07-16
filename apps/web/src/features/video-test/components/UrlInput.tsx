@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Link2, AlertCircle } from 'lucide-react';
+import { useTranslation } from '../../../shared/hooks/useTranslation.ts';
 
 interface UrlInputProps {
   onUrlSubmitted: (url: string) => void;
 }
 
 export default function UrlInput({ onUrlSubmitted }: UrlInputProps) {
+  const { t } = useTranslation();
   const [url, setUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -15,13 +17,13 @@ export default function UrlInput({ onUrlSubmitted }: UrlInputProps) {
 
     const trimmed = url.trim();
     if (!trimmed) {
-      setError("Please specify a stream URL or endpoint path.");
+      setError(t('vtest.url.errEmpty'));
       return;
     }
 
     const pattern = /^(rtsp:\/\/|http:\/\/|https:\/\/)/i;
     if (!pattern.test(trimmed)) {
-      setError("URL must start with rtsp://, http://, or https:// schema.");
+      setError(t('vtest.url.errSchema'));
       return;
     }
 
@@ -36,13 +38,13 @@ export default function UrlInput({ onUrlSubmitted }: UrlInputProps) {
           type="text" 
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="e.g. rtsp://192.168.1.100:554/stream1 or https://example.com/stream.mp4"
+          placeholder={t('vtest.url.placeholder')}
           style={styles.input}
         />
       </div>
 
       <button type="submit" className="btn-primary" style={styles.btn}>
-        Analyze URL
+        {t('vtest.url.btn')}
       </button>
 
       {error && (

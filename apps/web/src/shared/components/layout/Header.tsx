@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Radio, Activity } from 'lucide-react';
+import { Radio, Activity, Globe } from 'lucide-react';
+import { useTranslation } from '../../hooks/useTranslation.ts';
 
 export default function Header() {
   const [wsConnected, setWsConnected] = useState(false);
+  const { locale, setLocale, t } = useTranslation();
 
   useEffect(() => {
     // Check gateway websocket connectivity status
@@ -25,27 +27,41 @@ export default function Header() {
     };
   }, []);
 
+  const toggleLanguage = () => {
+    setLocale(locale === 'en' ? 'vi' : 'en');
+  };
+
   return (
     <header style={styles.header}>
       {/* Title */}
       <div style={styles.titleContainer}>
         <Activity size={18} color="var(--color-primary)" />
-        <span style={styles.title}>Control Center</span>
+        <span style={styles.title}>{t('header.controlCenter')}</span>
       </div>
 
       {/* Connection Badges */}
       <div style={styles.badges}>
+        {/* Language Toggle Switch */}
+        <button 
+          type="button" 
+          onClick={toggleLanguage} 
+          style={styles.langBtn}
+        >
+          <Globe size={14} />
+          <span>{locale === 'en' ? 'EN' : 'VI'}</span>
+        </button>
+
         {/* API Server status */}
         <div style={styles.badge}>
           <div style={styles.dotActive}></div>
-          <span style={styles.badgeText}>API Core: Online</span>
+          <span style={styles.badgeText}>{t('header.apiCore')}</span>
         </div>
 
         {/* WebSocket realtime indicator */}
         <div style={wsConnected ? styles.badgeActive : styles.badgeOffline}>
           <Radio size={14} className={wsConnected ? 'pulse-red-glow' : ''} />
           <span style={styles.badgeText}>
-            Realtime events: {wsConnected ? 'Connected' : 'Offline'}
+            {wsConnected ? t('header.realtimeConnected') : t('header.realtimeOffline')}
           </span>
         </div>
       </div>
@@ -85,6 +101,21 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: '12px',
+  },
+  langBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    backgroundColor: 'var(--color-border)',
+    color: 'var(--color-text)',
+    border: 'none',
+    padding: '6px 12px',
+    borderRadius: 'var(--radius-sm)',
+    fontSize: '11px',
+    fontWeight: 600,
+    fontFamily: 'var(--font-heading)',
+    cursor: 'pointer',
+    transition: 'background-color 150ms ease',
   },
   badge: {
     display: 'inline-flex',

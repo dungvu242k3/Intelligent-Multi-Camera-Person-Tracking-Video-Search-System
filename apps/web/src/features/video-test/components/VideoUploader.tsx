@@ -1,11 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { UploadCloud, FileVideo, AlertCircle } from 'lucide-react';
+import { useTranslation } from '../../../shared/hooks/useTranslation.ts';
 
 interface VideoUploaderProps {
   onFileSelected: (file: File) => void;
 }
 
 export default function VideoUploader({ onFileSelected }: VideoUploaderProps) {
+  const { t } = useTranslation();
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -27,13 +29,13 @@ export default function VideoUploader({ onFileSelected }: VideoUploaderProps) {
     const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
     
     if (!validExtensions.includes(fileExtension)) {
-      setError(`Invalid file format. Supported files: ${validExtensions.join(', ')}`);
+      setError(t('vtest.uploader.errFormat'));
       return;
     }
     
     const maxLimit = 250 * 1024 * 1024; // 250MB limit
     if (file.size > maxLimit) {
-      setError(`File size exceeds 250MB limit. Upload size is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`);
+      setError(`${t('vtest.uploader.errSize')} (${(file.size / (1024 * 1024)).toFixed(1)}MB)`);
       return;
     }
 
@@ -84,11 +86,11 @@ export default function VideoUploader({ onFileSelected }: VideoUploaderProps) {
         
         <UploadCloud size={48} color={dragActive ? 'var(--color-primary)' : 'var(--color-text-secondary)'} />
         
-        <h3 style={styles.heading}>Drag and drop video files here</h3>
-        <p style={styles.subtext}>Supports MP4, AVI, MKV, MOV up to 250MB</p>
+        <h3 style={styles.heading}>{t('vtest.uploader.title')}</h3>
+        <p style={styles.subtext}>{t('vtest.uploader.sub')}</p>
         
         <button type="button" onClick={triggerInput} className="btn-secondary" style={styles.btn}>
-          Browse Files
+          {t('vtest.uploader.browse')}
         </button>
 
         {selectedFile && (

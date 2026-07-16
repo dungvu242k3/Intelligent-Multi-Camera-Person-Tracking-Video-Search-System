@@ -1,5 +1,6 @@
 import React from 'react';
 import { Flame, CheckCircle, Clock, MapPin, ShieldAlert } from 'lucide-react';
+import { useTranslation } from '../../../shared/hooks/useTranslation.ts';
 
 interface FireEvent {
   id: string;
@@ -16,12 +17,14 @@ interface FireHistorySidebarProps {
 }
 
 export default function FireHistorySidebar({ events, onResolveEvent }: FireHistorySidebarProps) {
+  const { t } = useTranslation();
+
   return (
     <div style={styles.container}>
       {/* Title */}
       <div style={styles.header}>
         <ShieldAlert size={20} color="var(--color-danger)" />
-        <h3 style={styles.title}>Fire Alerts Incident Log</h3>
+        <h3 style={styles.title}>{t('fire.sidebarTitle')}</h3>
       </div>
 
       {/* Events Scroll Feed */}
@@ -65,8 +68,8 @@ export default function FireHistorySidebar({ events, onResolveEvent }: FireHisto
                 <Flame size={18} color={isResolved ? 'var(--color-success)' : 'var(--color-danger)'} />
                 <span style={styles.alertText}>
                   {isResolved 
-                    ? 'Fire safety verification check: RESOLVED.' 
-                    : 'CRITICAL: Flame/Smoke signature detected on GPU analytics engine!'
+                    ? t('fire.sidebarResolveMsg') 
+                    : t('fire.sidebarCritMsg')
                   }
                 </span>
               </div>
@@ -79,7 +82,7 @@ export default function FireHistorySidebar({ events, onResolveEvent }: FireHisto
                   style={styles.resolveBtn}
                 >
                   <CheckCircle size={14} />
-                  <span>Mark as Resolved</span>
+                  <span>{t('fire.sidebarBtnResolve')}</span>
                 </button>
               )}
             </div>
@@ -89,8 +92,8 @@ export default function FireHistorySidebar({ events, onResolveEvent }: FireHisto
         {events.length === 0 && (
           <div style={styles.emptyCard}>
             <CheckCircle size={28} color="var(--color-success)" />
-            <span style={styles.emptyHeading}>All Zones Nominal</span>
-            <span style={styles.emptyText}>No active fire signature warnings detected.</span>
+            <span style={styles.emptyHeading}>{t('fire.sidebarEmptyHeader')}</span>
+            <span style={styles.emptyText}>{t('fire.sidebarEmptyText')}</span>
           </div>
         )}
       </div>
