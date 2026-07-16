@@ -12,12 +12,19 @@ from packages.shared.vector.qdrant import QdrantVectorStore
 logger = logging.getLogger("scheduler_service.jobs.cleanup")
 
 # Optimize DB engine for cleanup operations
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=False,
-    pool_pre_ping=True
-)
-AsyncSessionLocal = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+_engine = None
+_session_maker = None
+
+def get_session_maker():
+    global _engine, _session_maker
+    if _session_maker is None:
+        _engine = create_async_engine(
+            settings.DATABASE_URL,
+            echo=False,
+            pool_pre_ping=True
+        )
+        _session_maker = async_sessionmaker(bind=_engine, class_=AsyncSession, expire_on_commit=False)
+    return _session_maker
 
 
 async def execute_cleanup_job() -> None:
@@ -36,7 +43,8 @@ async def execute_cleanup_job() -> None:
         secure=False
     )
 
-    async with AsyncSessionLocal() as session:
+    async_session_local = get_session_maker()
+    async with async_session_local() as session:
         try:
             # ============================================================
             # A. FETCH RETIRED DATA FOR FILE & VECTOR CLEANUP

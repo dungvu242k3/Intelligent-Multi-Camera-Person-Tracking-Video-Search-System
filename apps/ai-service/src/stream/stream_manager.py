@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Any
 from .rtsp_source import RTSPSource
 
 logger = logging.getLogger("ai_service.stream.stream_manager")
