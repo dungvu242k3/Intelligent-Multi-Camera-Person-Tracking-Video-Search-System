@@ -17,6 +17,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.
 from config.settings import settings
 from websocket.manager import manager
 from middleware.rate_limiter import rate_limiter
+from packages.shared.security import Role
+from packages.shared.api_errors import register_exception_handlers
 
 # Configure logging
 logging.basicConfig(
@@ -32,6 +34,8 @@ async_client: Optional[httpx.AsyncClient] = None
 # Local login brute-force lockout storage fallback
 # Structure: client_ip -> (failed_attempts_count, lockout_timestamp)
 gateway_lockouts: Dict[str, Tuple[int, float]] = {}
+MAX_AUTHORIZATION_HEADER_LENGTH = 8192
+MAX_JWT_TOKEN_LENGTH = 4096
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -61,9 +65,14 @@ app = FastAPI(
     docs_url=None if _is_prod else "/docs",
     redoc_url=None if _is_prod else "/redoc",
 )
+register_exception_handlers(app, settings.SERVICE_NAME)
 
 # 1. CORS Configuration (Restricted based on Environment settings)
-cors_origins = os.getenv("CORS_ALLOWED_ORIGINS", "*").split(",")
+cors_origins = [
+    origin.strip()
+    for origin in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+    if origin.strip()
+]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -126,12 +135,32 @@ SERVICE_MAPPING = {
     "analytics": settings.ANALYTICS_SERVICE_URL,
 }
 
+def get_client_ip(request: Request) -> str:
+    """Resolves client IP, trusting forwarded headers only from configured proxy IPs."""
+    direct_ip = request.client.host if request.client else "unknown"
+    trusted_proxies = {
+        proxy.strip()
+        for proxy in os.getenv("TRUSTED_PROXY_IPS", "").split(",")
+        if proxy.strip()
+    }
+    if direct_ip in trusted_proxies:
+        forwarded_for = request.headers.get("X-Forwarded-For", "")
+        first_hop = forwarded_for.split(",")[0].strip()
+        if first_hop:
+            return first_hop
+    return direct_ip
+
 def verify_token(authorization_header: Optional[str]) -> Dict[str, Any]:
     """Decodes and validates a JWT Access Token. Protects against token type confusion."""
     if not authorization_header:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing authorization credentials"
+        )
+    if len(authorization_header) > MAX_AUTHORIZATION_HEADER_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_431_REQUEST_HEADER_FIELDS_TOO_LARGE,
+            detail="Authorization header is too large"
         )
     parts = authorization_header.split()
     if len(parts) != 2 or parts[0].lower() != "bearer":
@@ -140,6 +169,11 @@ def verify_token(authorization_header: Optional[str]) -> Dict[str, Any]:
             detail="Invalid authorization schema. Use 'Bearer <token>'"
         )
     token = parts[1]
+    if len(token) > MAX_JWT_TOKEN_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization token is too large"
+        )
     try:
         payload = jwt.decode(
             token,
@@ -151,6 +185,18 @@ def verify_token(authorization_header: Optional[str]) -> Dict[str, Any]:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token type: Access token expected"
+            )
+        if not payload.get("sub"):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authorization token is missing a subject"
+            )
+        try:
+            Role(int(payload.get("role_id")))
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Authorization token contains an invalid role"
             )
         return payload
     except jwt.ExpiredSignatureError:
@@ -175,7 +221,7 @@ async def proxy_request(service: str, path: str, request: Request):
             detail=f"Downstream service '{service}' not registered in Gateway configurations."
         )
 
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
 
     # Enforce rate limiting threshold
     if not rate_limiter.check_rate_limit(client_ip):
@@ -233,6 +279,7 @@ async def proxy_request(service: str, path: str, request: Request):
         # Propagate verified user identity to downstreams via security headers
         headers["X-User-Id"] = payload.get("sub", "")
         headers["X-User-Role"] = str(payload.get("role_id", ""))
+        headers["X-Internal-Service-Key"] = settings.INTERNAL_SERVICE_KEY
 
     target_base_url = SERVICE_MAPPING[service]
     
@@ -246,6 +293,11 @@ async def proxy_request(service: str, path: str, request: Request):
     logger.debug(f"Proxying request {request.method} -> {url}")
 
     try:
+        if async_client is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Gateway HTTP client is not initialized."
+            )
         response = await async_client.request(
             method=request.method,
             url=url,
@@ -306,6 +358,9 @@ async def websocket_endpoint(websocket: WebSocket):
     if not token:
         await websocket.close(code=4001, reason="Missing authentication token")
         return
+    if len(token) > MAX_JWT_TOKEN_LENGTH:
+        await websocket.close(code=4001, reason="Token is too large")
+        return
     
     try:
         payload = jwt.decode(
@@ -315,6 +370,14 @@ async def websocket_endpoint(websocket: WebSocket):
         )
         if payload.get("type") != "access":
             await websocket.close(code=4001, reason="Invalid token type")
+            return
+        if not payload.get("sub"):
+            await websocket.close(code=4001, reason="Missing token subject")
+            return
+        try:
+            Role(int(payload.get("role_id")))
+        except (TypeError, ValueError):
+            await websocket.close(code=4001, reason="Invalid token role")
             return
     except jwt.ExpiredSignatureError:
         await websocket.close(code=4001, reason="Token expired")
@@ -367,4 +430,31 @@ async def publish_alert(payload: AlertPublishRequest, request: Request):
 
 @app.get("/health", tags=["system"])
 async def health_check():
-    return {"status": "healthy", "service": "api-gateway"}
+    redis_status = "disabled"
+    if rate_limiter.enabled:
+        redis_status = "unavailable"
+        if rate_limiter.redis_client:
+            try:
+                rate_limiter.redis_client.ping()
+                redis_status = "connected"
+            except Exception:
+                redis_status = "unavailable"
+
+    upstreams = {}
+    if async_client:
+        for name, base_url in SERVICE_MAPPING.items():
+            try:
+                response = await async_client.get(f"{base_url}/health", timeout=2.0)
+                upstreams[name] = "healthy" if response.status_code < 500 else "degraded"
+            except Exception:
+                upstreams[name] = "unreachable"
+
+    degraded = redis_status == "unavailable" or any(
+        status_value != "healthy" for status_value in upstreams.values()
+    )
+    return {
+        "status": "degraded" if degraded else "healthy",
+        "service": "api-gateway",
+        "redis": redis_status,
+        "upstreams": upstreams,
+    }

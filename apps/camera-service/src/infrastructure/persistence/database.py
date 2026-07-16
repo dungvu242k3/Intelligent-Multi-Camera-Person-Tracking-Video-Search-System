@@ -7,9 +7,11 @@ from config.settings import settings
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
-    pool_size=10,
-    max_overflow=5,
-    pool_pre_ping=True
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
+    pool_timeout=settings.DB_POOL_TIMEOUT_SECONDS,
+    pool_recycle=settings.DB_POOL_RECYCLE_SECONDS,
+    pool_pre_ping=True,
 )
 
 # Async session factory

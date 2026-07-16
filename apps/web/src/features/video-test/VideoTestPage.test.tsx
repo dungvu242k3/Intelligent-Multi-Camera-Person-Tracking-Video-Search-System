@@ -23,7 +23,7 @@ describe('VideoTestPage', () => {
       capturedSignal = signal;
       return new Promise(() => undefined);
     });
-    vi.mocked(submitVideoUrl).mockResolvedValue({ accepted: true });
+    vi.mocked(submitVideoUrl).mockResolvedValue({ accepted: true, job_id: 'test-job', source_type: 'url', status: 'accepted', message: 'Accepted' });
 
     const { container } = render(<VideoTestPage />);
     const fileInput = container.querySelector<HTMLInputElement>('#video-file-input');

@@ -3,7 +3,7 @@ import logging
 import asyncio
 import os
 from typing import Callable, Coroutine
-from confluent_kafka import Consumer, KafkaError
+from confluent_kafka import Consumer, KafkaError, Producer
 
 logger = logging.getLogger("analytics_service.kafka_consumer")
 
@@ -16,11 +16,30 @@ class KafkaEventConsumer:
             'bootstrap.servers': bootstrap_servers,
             'group.id': group_id,
             'auto.offset.reset': 'earliest',
-            'enable.auto.commit': True
+            'enable.auto.commit': False
         }
         self.consumer = Consumer(conf)
+        self.dlq_producer = Producer({'bootstrap.servers': bootstrap_servers})
+        self.max_attempts = int(os.getenv("KAFKA_PROCESSING_MAX_ATTEMPTS", "3"))
         self.running = False
         logger.info(f"Kafka Consumer initialized with group: {group_id}")
+
+    def _send_to_dlq(self, topic: str, msg, error: Exception) -> None:
+        dlq_topic = f"{topic}.DLQ"
+        payload = {
+            "source_topic": topic,
+            "partition": msg.partition(),
+            "offset": msg.offset(),
+            "error": str(error),
+            "raw_value": msg.value().decode("utf-8", errors="replace") if msg.value() else None,
+        }
+        self.dlq_producer.produce(
+            dlq_topic,
+            key=msg.key(),
+            value=json.dumps(payload).encode("utf-8"),
+        )
+        self.dlq_producer.flush(5.0)
+        logger.error(f"Kafka event moved to DLQ topic {dlq_topic} at offset {msg.offset()}")
 
     async def start_listening(self, topic: str, process_callback: Callable[[dict], Coroutine]):
         """Starts the infinite polling loop. Runs asynchronously without blocking."""
@@ -45,13 +64,34 @@ class KafkaEventConsumer:
                         logger.error(f"Kafka Consumer Error: {msg.error()}")
                         break
 
-                # Parse JSON payload
                 try:
                     payload = json.loads(msg.value().decode('utf-8'))
-                    # Dispatch to usecase async callback
-                    await process_callback(payload)
                 except Exception as e:
-                    logger.error(f"Error parsing or processing Kafka event message: {e}")
+                    logger.error(f"Error parsing Kafka event message: {e}")
+                    self._send_to_dlq(topic, msg, e)
+                    self.consumer.commit(message=msg, asynchronous=False)
+                    continue
+
+                processed = False
+                last_error = None
+                for attempt in range(1, self.max_attempts + 1):
+                    try:
+                        await process_callback(payload)
+                        processed = True
+                        break
+                    except Exception as e:
+                        last_error = e
+                        logger.error(
+                            f"Error processing Kafka event message on attempt {attempt}/{self.max_attempts}: {e}",
+                            exc_info=True,
+                        )
+                        await asyncio.sleep(min(2 ** attempt, 10))
+
+                if processed:
+                    self.consumer.commit(message=msg, asynchronous=False)
+                else:
+                    self._send_to_dlq(topic, msg, last_error or RuntimeError("Unknown processing failure"))
+                    self.consumer.commit(message=msg, asynchronous=False)
         finally:
             self.close()
 

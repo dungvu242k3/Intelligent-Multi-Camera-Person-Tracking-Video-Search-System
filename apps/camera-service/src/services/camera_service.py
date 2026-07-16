@@ -1,7 +1,8 @@
 import uuid
-from typing import List, Optional
+from typing import Any, List, Optional, cast
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import func
 from models.camera import Camera
 
 class CameraService:
@@ -19,7 +20,7 @@ class CameraService:
             status="DISCONNECTED"
         )
         self.db.add(camera)
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(camera)
         return camera
 
@@ -33,10 +34,21 @@ class CameraService:
         result = await self.db.execute(select(Camera).where(Camera.rtsp_url == rtsp_url))
         return result.scalar_one_or_none()
 
-    async def list_all_cameras(self) -> List[Camera]:
+    async def list_all_cameras(self, limit: Optional[int] = None, offset: int = 0) -> List[Camera]:
         """Returns all registered camera feeds."""
-        result = await self.db.execute(select(Camera))
+        stmt = select(Camera).order_by(Camera.created_at.desc(), Camera.id).offset(offset)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        result = await self.db.execute(stmt)
         return list(result.scalars().all())
+
+    async def get_status_counts(self) -> tuple[int, int]:
+        """Returns total and connected camera counts without loading all rows."""
+        total_result = await self.db.execute(select(func.count(Camera.id)))
+        online_result = await self.db.execute(
+            select(func.count(Camera.id)).where(Camera.status == "CONNECTED")
+        )
+        return int(total_result.scalar_one()), int(online_result.scalar_one())
 
     async def update_camera(self, camera_id: uuid.UUID, name: Optional[str] = None, location: Optional[str] = None, fps: Optional[int] = None) -> Optional[Camera]:
         """Modifies camera settings."""
@@ -45,13 +57,13 @@ class CameraService:
             return None
         
         if name is not None:
-            camera.name = name
+            cast(Any, camera).name = name
         if location is not None:
-            camera.location = location
+            cast(Any, camera).location = location
         if fps is not None:
-            camera.fps = fps
+            cast(Any, camera).fps = fps
             
-        await self.db.commit()
+        await self.db.flush()
         await self.db.refresh(camera)
         return camera
 
@@ -60,8 +72,8 @@ class CameraService:
         camera = await self.get_by_id(camera_id)
         if not camera:
             return None
-        camera.status = status
-        await self.db.commit()
+        cast(Any, camera).status = status
+        await self.db.flush()
         return camera
 
     async def delete_camera(self, camera_id: uuid.UUID) -> bool:
@@ -70,5 +82,5 @@ class CameraService:
         if not camera:
             return False
         await self.db.delete(camera)
-        await self.db.commit()
+        await self.db.flush()
         return True

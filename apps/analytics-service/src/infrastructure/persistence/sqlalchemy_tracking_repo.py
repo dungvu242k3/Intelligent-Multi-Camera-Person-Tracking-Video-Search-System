@@ -1,5 +1,5 @@
 import uuid
-from typing import List, Optional
+from typing import Any, List, Optional, cast
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -40,29 +40,30 @@ class SqlAlchemyTrackingRepository:
         models = result.scalars().all()
         return [self._to_entity(model) for model in models]
 
-    async def get_recent_events(self, limit: int = 50) -> List[TrackingEvent]:
+    async def get_recent_events(self, limit: int = 50, before: Optional[datetime] = None) -> List[TrackingEvent]:
         """Fetches the most recent tracking logs."""
-        result = await self.session.execute(
-            select(TrackingEventModel)
-            .order_by(TrackingEventModel.timestamp.desc())
-            .limit(limit)
-        )
+        stmt = select(TrackingEventModel)
+        if before is not None:
+            stmt = stmt.where(TrackingEventModel.timestamp < before)
+        stmt = stmt.order_by(TrackingEventModel.timestamp.desc()).limit(limit)
+        result = await self.session.execute(stmt)
         models = result.scalars().all()
         return [self._to_entity(model) for model in models]
 
     def _to_entity(self, model: TrackingEventModel) -> TrackingEvent:
         """Maps persistent model back to clean domain entity."""
+        model_any = cast(Any, model)
         return TrackingEvent(
-            id=model.id,
-            person_id=model.person_id,
-            camera_id=model.camera_id,
-            confidence=model.confidence,
-            crop_path=model.crop_path,
-            timestamp=model.timestamp,
+            id=model_any.id,
+            person_id=model_any.person_id,
+            camera_id=model_any.camera_id,
+            confidence=model_any.confidence,
+            crop_path=model_any.crop_path,
+            timestamp=model_any.timestamp,
             bbox=BoundingBox(
-                left=model.bbox_left,
-                top=model.bbox_top,
-                width=model.bbox_width,
-                height=model.bbox_height
+                left=model_any.bbox_left,
+                top=model_any.bbox_top,
+                width=model_any.bbox_width,
+                height=model_any.bbox_height
             )
         )

@@ -55,8 +55,8 @@ export default function LoginPage() {
         signal: controller.signal,
       });
 
-      // Succeeds -> Write tokens to store
-      login(res.data.access_token, res.data.refresh_token);
+      // Succeeds -> write access token; refresh token stays in HttpOnly cookie.
+      login(res.data.access_token);
       navigate('/', { replace: true });
     } catch (err: unknown) {
       if (controller.signal.aborted) {

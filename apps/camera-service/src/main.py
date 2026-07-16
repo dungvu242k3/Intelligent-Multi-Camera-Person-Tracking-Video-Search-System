@@ -3,7 +3,7 @@ import sys
 import logging
 import asyncio
 from typing import Optional
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from contextlib import asynccontextmanager
 
 # Setup path to import packages correctly in monorepo
@@ -13,6 +13,7 @@ from api.camera_routes import router as camera_router
 from services.health_checker import RtspHealthChecker
 from infrastructure.persistence.database import engine, AsyncSessionLocal
 from config.settings import settings
+from packages.shared.api_errors import register_exception_handlers
 
 logging.basicConfig(
     level=logging.INFO,
@@ -61,6 +62,15 @@ app = FastAPI(
     docs_url=None if _is_prod else "/docs",
     redoc_url=None if _is_prod else "/redoc",
 )
+register_exception_handlers(app, settings.SERVICE_NAME)
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 
 # Register endpoints
 app.include_router(camera_router, prefix="/api/v1")

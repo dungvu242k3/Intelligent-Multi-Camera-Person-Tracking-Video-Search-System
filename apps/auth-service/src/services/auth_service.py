@@ -7,6 +7,9 @@ from models.user import User
 
 logger = logging.getLogger("auth_service.auth_service")
 
+class AuthenticationBackendUnavailable(Exception):
+    """Raised when credential verification cannot reach its backing datastore."""
+
 class AuthService:
     """Handles password hashing, password validation, and database credential checks."""
 
@@ -61,18 +64,18 @@ class AuthService:
             
             if not user:
                 # Perform a dummy bcrypt hash check to mitigate timing side-channel attacks
-                dummy_hash = "$2b$12$L7R2Q6sP.e2fD8K7G5J2ae9M4v3t8y1z5u6p7w8q9r0s1t2u3v4w5"
+                dummy_hash = "$2b$12$L9cyqFUpysenWtJrxnlYEuyjAeBFlv1nRYRoxc1s3fXq8o1ZwsPPW"
                 bcrypt.checkpw(password.encode("utf-8"), dummy_hash.encode("utf-8"))
-                logger.info(f"Authentication attempt failed: User with email '{email}' not found.")
+                logger.info("Authentication attempt failed: active user not found.")
                 return None
                 
             # Verify password match
-            if not AuthService.verify_password(password, user.hashed_password):
-                logger.info(f"Authentication attempt failed: Password mismatch for email '{email}'.")
+            if not AuthService.verify_password(password, str(user.hashed_password)):
+                logger.info("Authentication attempt failed: password mismatch.")
                 return None
                 
-            logger.info(f"User '{email}' authenticated successfully.")
+            logger.info("User authenticated successfully.", extra={"user_id": str(user.id)})
             return user
         except Exception as e:
             logger.error(f"Database query error during user authentication: {e}", exc_info=True)
-            return None
+            raise AuthenticationBackendUnavailable from e

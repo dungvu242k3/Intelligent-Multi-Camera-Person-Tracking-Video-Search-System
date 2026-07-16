@@ -57,3 +57,14 @@ export interface VideoTestReport {
 export interface VideoUrlTestRequest {
   url: string;
 }
+
+export interface VideoTestAcceptedResponse {
+  accepted: boolean;
+  job_id: string;
+  source_type: 'file' | 'url';
+  status: 'accepted';
+  message: string;
+  filename?: string | null;
+  url?: string | null;
+  size_bytes?: number | null;
+}

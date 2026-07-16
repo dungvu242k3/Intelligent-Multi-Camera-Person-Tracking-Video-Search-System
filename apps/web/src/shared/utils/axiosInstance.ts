@@ -3,7 +3,6 @@ import { useAuthStore } from '../stores/authStore.ts';
 
 interface TokenRefreshResponse {
   access_token: string;
-  refresh_token?: string;
   token_type: string;
 }
 
@@ -77,14 +76,12 @@ export async function refreshAccessToken(): Promise<string | null> {
   }
 
   refreshPromise = (async () => {
-    const { getRefreshToken, setAccessToken, logout } = useAuthStore.getState();
+    const { setAccessToken, logout } = useAuthStore.getState();
 
     try {
-      const response = await refreshClient.post<TokenRefreshResponse>('/auth/refresh', {
-        refresh_token: getRefreshToken(),
-      });
+      const response = await refreshClient.post<TokenRefreshResponse>('/auth/refresh', {});
 
-      setAccessToken(response.data.access_token, response.data.refresh_token ?? null);
+      setAccessToken(response.data.access_token);
       return response.data.access_token;
     } catch {
       logout();

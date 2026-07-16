@@ -3,28 +3,26 @@ import {
   DetectionStats,
   CropDetail,
   TimelineEntry,
+  VideoTestAcceptedResponse,
   VideoTestReport,
   VideoUrlTestRequest,
 } from '../../../shared/types/videoTest.ts';
 import { VIDEO_TEST_ENDPOINTS, VIDEO_TEST_REPORT } from '../constants.ts';
 
-export async function submitVideoFile(file: File, signal?: AbortSignal): Promise<unknown> {
+export async function submitVideoFile(file: File, signal?: AbortSignal): Promise<VideoTestAcceptedResponse> {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await axiosInstance.post<unknown>(VIDEO_TEST_ENDPOINTS.testVideo, formData, {
+  const response = await axiosInstance.post<VideoTestAcceptedResponse>(VIDEO_TEST_ENDPOINTS.testVideo, formData, {
     signal,
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
   });
 
   return response.data;
 }
 
-export async function submitVideoUrl(url: string, signal?: AbortSignal): Promise<unknown> {
+export async function submitVideoUrl(url: string, signal?: AbortSignal): Promise<VideoTestAcceptedResponse> {
   const payload: VideoUrlTestRequest = { url };
-  const response = await axiosInstance.post<unknown>(VIDEO_TEST_ENDPOINTS.testUrl, payload, { signal });
+  const response = await axiosInstance.post<VideoTestAcceptedResponse>(VIDEO_TEST_ENDPOINTS.testUrl, payload, { signal });
 
   return response.data;
 }

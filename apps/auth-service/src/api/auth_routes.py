@@ -1,30 +1,33 @@
 import logging
 import re
-from typing import Dict, Any, Optional
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from typing import AsyncGenerator, Dict, Any, Optional
+from fastapi import APIRouter, Body, Cookie, Depends, HTTPException, Response, status
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 
 from config.settings import settings
-from services.auth_service import AuthService
+from services.auth_service import AuthService, AuthenticationBackendUnavailable
 from services.token_service import TokenService
 from models.user import User
 
 logger = logging.getLogger("auth_service.api.auth_routes")
 router = APIRouter()
+MAX_TOKEN_LENGTH = 4096
 
 # 1. Local Database setup for auth-service (async connection)
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
-    pool_size=10,
-    max_overflow=5,
-    pool_pre_ping=True
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
+    pool_timeout=settings.DB_POOL_TIMEOUT_SECONDS,
+    pool_recycle=settings.DB_POOL_RECYCLE_SECONDS,
+    pool_pre_ping=True,
 )
 AsyncSessionLocal = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
-async def get_db() -> AsyncSession:
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependency provider yielding SQLAlchemy async database session handles."""
     async with AsyncSessionLocal() as session:
         try:
@@ -43,7 +46,15 @@ class LoginRequest(BaseModel):
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=128)
-    full_name: str = Field(..., min_length=1, max_length=100, strip_whitespace=True)
+    full_name: str = Field(..., min_length=1, max_length=100)
+
+    @field_validator("full_name")
+    @classmethod
+    def strip_full_name(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("Full name cannot be blank")
+        return stripped
 
     @field_validator("password")
     @classmethod
@@ -59,7 +70,6 @@ class RegisterRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
-    refresh_token: str
     token_type: str = "bearer"
 
 class AccessTokenResponse(BaseModel):
@@ -67,10 +77,10 @@ class AccessTokenResponse(BaseModel):
     token_type: str = "bearer"
 
 class RefreshRequest(BaseModel):
-    refresh_token: Optional[str] = None
+    refresh_token: Optional[str] = Field(default=None, max_length=MAX_TOKEN_LENGTH)
 
 class TokenVerifyRequest(BaseModel):
-    token: str
+    token: str = Field(..., min_length=1, max_length=MAX_TOKEN_LENGTH)
 
 def set_refresh_token_cookie(response: Response, refresh_token: str) -> None:
     response.set_cookie(
@@ -87,7 +97,13 @@ def set_refresh_token_cookie(response: Response, refresh_token: str) -> None:
 @router.post("/login", response_model=TokenResponse)
 async def login(request: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
     """Authenticates user credentials and generates access/refresh tokens."""
-    user = await AuthService.authenticate_user(db, request.email, request.password)
+    try:
+        user = await AuthService.authenticate_user(db, request.email, request.password)
+    except AuthenticationBackendUnavailable:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication backend is temporarily unavailable"
+        )
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -105,12 +121,12 @@ async def login(request: LoginRequest, response: Response, db: AsyncSession = De
     refresh_token = TokenService.create_refresh_token({"sub": str(user.id)})
     set_refresh_token_cookie(response, refresh_token)
     
-    return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+    return TokenResponse(access_token=access_token)
 
 @router.post("/refresh", response_model=AccessTokenResponse)
 async def refresh_token(
-    request: RefreshRequest,
     response: Response,
+    request: RefreshRequest = Body(default_factory=RefreshRequest),
     mcpt_refresh_token: Optional[str] = Cookie(default=None),
     db: AsyncSession = Depends(get_db),
 ):
@@ -120,6 +136,11 @@ async def refresh_token(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing refresh token"
+        )
+    if len(token) > MAX_TOKEN_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token is too large"
         )
 
     payload = TokenService.decode_and_verify_token(token)
@@ -160,7 +181,7 @@ async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db))
     
     if existing_user:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_409_CONFLICT,
             detail="Email address already registered"
         )
         
@@ -176,7 +197,7 @@ async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db))
     try:
         await db.commit()
         await db.refresh(new_user)
-        logger.info(f"New user registered: {new_user.email} (ID: {new_user.id})")
+        logger.info("New user registered.", extra={"user_id": str(new_user.id)})
         return {"status": "success", "user_id": str(new_user.id)}
     except Exception as e:
         await db.rollback()

@@ -36,6 +36,7 @@ class QdrantVectorStore:
             self._collection_checked = True
         except Exception as e:
             logger.error(f"Failed to check/create Qdrant collection: {e}")
+            raise
 
     async def upsert_embedding(self, person_id: uuid.UUID, embedding: List[float], metadata: Dict[str, Any]):
         await self._ensure_collection()
@@ -52,6 +53,7 @@ class QdrantVectorStore:
             )
         except Exception as e:
             logger.error(f"Failed to upsert embedding in Qdrant: {e}")
+            raise
 
     async def search_similar(self, embedding: List[float], limit: int = 5, score_threshold: float = 0.70) -> List[Dict[str, Any]]:
         await self._ensure_collection()

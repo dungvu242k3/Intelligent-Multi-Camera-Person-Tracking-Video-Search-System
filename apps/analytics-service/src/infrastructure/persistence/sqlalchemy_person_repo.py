@@ -1,5 +1,5 @@
 import uuid
-from typing import Optional
+from typing import Any, Optional, cast
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -43,20 +43,22 @@ class SqlAlchemyPersonRepository:
             self.session.add(model)
         else:
             # Update existing persistent model
-            model.display_name = person.display_name
-            model.first_seen = person.first_seen
-            model.last_seen = person.last_seen
-            model.total_appearances = person.total_appearances
+            model_any = cast(Any, model)
+            model_any.display_name = person.display_name
+            model_any.first_seen = person.first_seen
+            model_any.last_seen = person.last_seen
+            model_any.total_appearances = person.total_appearances
 
         # Commit is deferred to the main transaction boundary in main.py callback
         return self._to_entity(model)
 
     def _to_entity(self, model: PersonModel) -> Person:
         """Helper mapping SQL model to pure Domain entity."""
+        model_any = cast(Any, model)
         return Person(
-            id=model.id,
-            display_name=model.display_name,
-            first_seen=model.first_seen,
-            last_seen=model.last_seen,
-            total_appearances=model.total_appearances
+            id=model_any.id,
+            display_name=model_any.display_name,
+            first_seen=model_any.first_seen,
+            last_seen=model_any.last_seen,
+            total_appearances=model_any.total_appearances
         )

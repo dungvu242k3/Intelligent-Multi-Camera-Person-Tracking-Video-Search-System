@@ -2,6 +2,7 @@ import os
 import sys
 import logging
 from fastapi import FastAPI
+from fastapi import Request
 from contextlib import asynccontextmanager
 
 # Setup path to import packages correctly in monorepo
@@ -9,6 +10,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.
 
 from api.auth_routes import router as auth_router, engine
 from config.settings import settings as auth_settings
+from packages.shared.api_errors import register_exception_handlers
 
 # Configure structured logging
 logging.basicConfig(
@@ -37,6 +39,15 @@ app = FastAPI(
     docs_url=None if _is_prod else "/docs",
     redoc_url=None if _is_prod else "/redoc",
 )
+register_exception_handlers(app, auth_settings.SERVICE_NAME)
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 
 # Register endpoints
 app.include_router(auth_router, prefix="/api/v1/auth")

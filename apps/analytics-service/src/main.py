@@ -4,6 +4,7 @@ import logging
 import asyncio
 from typing import Optional
 from fastapi import FastAPI
+from fastapi import Request
 from contextlib import asynccontextmanager
 
 # Setup path to import packages correctly in monorepo
@@ -17,6 +18,7 @@ from packages.shared.vector.qdrant import QdrantVectorStore
 from infrastructure.messaging.kafka_consumer import KafkaEventConsumer
 from application.use_cases.process_tracking_event import ProcessTrackingEventUseCase
 from packages.shared.messaging.kafka import KafkaEventProducer
+from packages.shared.api_errors import register_exception_handlers
 
 logging.basicConfig(
     level=logging.INFO,
@@ -29,6 +31,13 @@ logger = logging.getLogger("analytics_service")
 consumer_instance: Optional[KafkaEventConsumer] = None
 consumer_task: Optional[asyncio.Task] = None
 kafka_producer_instance: Optional[KafkaEventProducer] = None
+
+def validate_internal_service_key() -> None:
+    key = os.getenv("INTERNAL_SERVICE_KEY", "")
+    if os.getenv("ENV", "development").lower() == "production" and (
+        len(key) < 32 or key == "change_this_internal_key_in_production"
+    ):
+        raise RuntimeError("INTERNAL_SERVICE_KEY must be set to a strong production secret")
 
 async def start_kafka_consumer():
     """Background loop listening for raw DeepStream detection events from Kafka."""
@@ -63,6 +72,7 @@ async def start_kafka_consumer():
             except Exception as e:
                 logger.error(f"Failed to execute process event transaction: {e}")
                 await session.rollback()
+                raise
 
     # Start infinite polling loop
     try:
@@ -78,6 +88,7 @@ async def lifespan(app: FastAPI):
     global consumer_task, consumer_instance, kafka_producer_instance
     
     logger.info("Starting up Analytics Service...")
+    validate_internal_service_key()
     # Start Kafka consumer in background task (runs on the asyncio event loop)
     consumer_task = asyncio.create_task(start_kafka_consumer())
     
@@ -92,8 +103,8 @@ async def lifespan(app: FastAPI):
     if consumer_task:
         consumer_task.cancel()
         try:
-            await consumer_task
-        except asyncio.CancelledError:
+            await asyncio.wait_for(consumer_task, timeout=15.0)
+        except (asyncio.CancelledError, asyncio.TimeoutError):
             pass
             
     # 3. Flush Kafka alerts producer
@@ -115,6 +126,15 @@ app = FastAPI(
     docs_url=None if _is_prod else "/docs",
     redoc_url=None if _is_prod else "/redoc",
 )
+register_exception_handlers(app, "analytics-service")
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 
 # Mount API Routers
 app.include_router(tracking_router, prefix="/api/v1")

@@ -44,7 +44,7 @@ describe('LoginPage', () => {
     vi.mocked(axiosInstance.post).mockResolvedValueOnce({
       data: {
         access_token: accessToken,
-        refresh_token: 'refresh-token',
+        token_type: 'bearer',
       },
     });
 

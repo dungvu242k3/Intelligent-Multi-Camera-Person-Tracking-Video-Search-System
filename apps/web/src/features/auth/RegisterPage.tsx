@@ -4,6 +4,10 @@ import { Lock, Mail, ShieldAlert, Globe, Eye, EyeOff, User, CheckCircle } from '
 import { useTranslation } from '../../shared/hooks/useTranslation.ts';
 import axiosInstance, { isHttpClientError } from '../../shared/utils/axiosInstance.ts';
 
+function isPasswordStrongEnough(password: string): boolean {
+  return password.length >= 8 && /[A-Z]/.test(password) && /[a-z]/.test(password) && /\d/.test(password);
+}
+
 export default function RegisterPage() {
   const { t, locale, setLocale } = useTranslation();
   const navigate = useNavigate();
@@ -48,8 +52,12 @@ export default function RegisterPage() {
       return;
     }
 
-    if (password.length < 6) {
-      setError(t('auth.errPassword'));
+    if (!isPasswordStrongEnough(password)) {
+      setError(
+        locale === 'en'
+          ? 'Password must be at least 8 characters and include uppercase, lowercase, and a number.'
+          : 'Mat khau phai co it nhat 8 ky tu, gom chu hoa, chu thuong va so.'
+      );
       return;
     }
 
@@ -82,8 +90,10 @@ export default function RegisterPage() {
 
       if (isHttpClientError(err) && err.response) {
         const { status } = err.response;
-        if (status === 400) {
+        if (status === 400 || status === 409) {
           setError(locale === 'en' ? 'Email address is already registered.' : 'Địa chỉ email này đã được đăng ký.');
+        } else if (status === 422) {
+          setError(t('error.generic'));
         } else {
           setError(t('error.500'));
         }

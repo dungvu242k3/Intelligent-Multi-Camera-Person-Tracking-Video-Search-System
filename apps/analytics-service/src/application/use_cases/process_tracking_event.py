@@ -26,50 +26,40 @@ class ProcessTrackingEventUseCase:
 
     async def execute(self, event_data: Dict[str, Any]):
         """Processes a single raw detection message from Kafka."""
-        try:
-            camera_id = uuid.UUID(event_data["camera_id"])
-            frame_num = event_data["frame_number"]
-            timestamp_str = event_data["timestamp"]
-            # Parse timestamp to datetime
-            timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
-            
-            detection = event_data["detection"]
-            class_id = detection["class_id"]
-            object_type = detection["type"]
-            confidence = detection["confidence"]
-            crop_path = detection.get("crop_path")
-            
-            bbox_raw = detection["bbox"]
-            bbox = BoundingBox(
-                left=bbox_raw["left"],
-                top=bbox_raw["top"],
-                width=bbox_raw["width"],
-                height=bbox_raw["height"]
+        camera_id = uuid.UUID(event_data["camera_id"])
+        timestamp_str = event_data["timestamp"]
+        timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+
+        detection = event_data["detection"]
+        object_type = detection["type"]
+        confidence = detection["confidence"]
+        crop_path = detection.get("crop_path")
+
+        bbox_raw = detection["bbox"]
+        bbox = BoundingBox(
+            left=bbox_raw["left"],
+            top=bbox_raw["top"],
+            width=bbox_raw["width"],
+            height=bbox_raw["height"]
+        )
+
+        if object_type in ["fire", "smoke"]:
+            await self._handle_fire_detection(camera_id, confidence, crop_path, timestamp)
+            return
+
+        if object_type == "person":
+            embedding = detection.get("embedding", [])
+            await self._handle_person_detection(
+                camera_id=camera_id,
+                confidence=confidence,
+                bbox=bbox,
+                crop_path=crop_path,
+                embedding=embedding,
+                timestamp=timestamp
             )
+            return
 
-            # --- BRANCH 1: FIRE & SMOKE DETECTIONS ---
-            if object_type in ["fire", "smoke"]:
-                await self._handle_fire_detection(camera_id, confidence, crop_path, timestamp)
-                return
-
-            # --- BRANCH 2: PERSON DETECTIONS (WITH ReID EMBEDDINGS) ---
-            if object_type == "person":
-                embedding = detection.get("embedding", [])
-                await self._handle_person_detection(
-                    camera_id=camera_id,
-                    confidence=confidence,
-                    bbox=bbox,
-                    crop_path=crop_path,
-                    embedding=embedding,
-                    timestamp=timestamp
-                )
-                return
-
-            # --- BRANCH 3: GENERAL OBJECT DETECTIONS ---
-            logger.info(f"General object detected: {object_type} on camera {camera_id} with confidence {confidence}")
-
-        except Exception as e:
-            logger.error(f"Error executing ProcessTrackingEventUseCase: {e}", exc_info=True)
+        logger.info(f"General object detected: {object_type} on camera {camera_id} with confidence {confidence}")
 
     async def _handle_person_detection(
         self,

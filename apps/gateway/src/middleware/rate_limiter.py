@@ -1,5 +1,6 @@
 import time
 import logging
+import threading
 from typing import Dict, List, Optional
 from fastapi import HTTPException, status
 from config.settings import settings
@@ -17,6 +18,7 @@ class RateLimiter:
     def __init__(self) -> None:
         self.redis_client = None
         self.in_memory_db: Dict[str, List[float]] = {}
+        self._in_memory_lock = threading.RLock()
         self.enabled = settings.RATE_LIMIT_ENABLED
         
         if self.enabled:
@@ -84,20 +86,19 @@ class RateLimiter:
                 self.redis_client = None  # Fallback to local memory log below
                 
         # 2. Local In-Memory Fallback
-        # P1 #9: Run garbage collection before adding new entries
-        self._garbage_collect_in_memory()
-        
-        timestamps = self.in_memory_db.get(client_ip, [])
-        # Keep only timestamps within sliding window
-        valid_timestamps = [t for t in timestamps if t > now - window_seconds]
-        
-        if len(valid_timestamps) >= limit:
-            logger.warning(f"Rate limit exceeded for client (in-memory): {client_ip} (Requests: {len(valid_timestamps)}/{limit})")
+        with self._in_memory_lock:
+            self._garbage_collect_in_memory()
+
+            timestamps = self.in_memory_db.get(client_ip, [])
+            valid_timestamps = [t for t in timestamps if t > now - window_seconds]
+
+            if len(valid_timestamps) >= limit:
+                logger.warning(f"Rate limit exceeded for client (in-memory): {client_ip} (Requests: {len(valid_timestamps)}/{limit})")
+                self.in_memory_db[client_ip] = valid_timestamps
+                return False
+
+            valid_timestamps.append(now)
             self.in_memory_db[client_ip] = valid_timestamps
-            return False
-            
-        valid_timestamps.append(now)
-        self.in_memory_db[client_ip] = valid_timestamps
-        return True
+            return True
 
 rate_limiter = RateLimiter()
