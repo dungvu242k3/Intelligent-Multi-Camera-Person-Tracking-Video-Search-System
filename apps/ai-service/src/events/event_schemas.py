@@ -4,7 +4,7 @@ Used by downstream consumers (gateway, search-service, analytics) for validation
 """
 from __future__ import annotations
 from dataclasses import dataclass, field, asdict
-from typing import List, Optional
+from typing import List
 import json
 
 

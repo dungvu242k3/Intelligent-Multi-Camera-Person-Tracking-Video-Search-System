@@ -12,10 +12,10 @@ from __future__ import annotations
 import logging
 import threading
 import uuid
-from collections import defaultdict
+
 from typing import Dict, List, Optional, Tuple
 
-import numpy as np
+
 
 from utils.embedding import cosine_similarity, average_embeddings
 

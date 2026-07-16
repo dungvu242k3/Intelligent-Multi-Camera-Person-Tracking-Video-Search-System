@@ -1,4 +1,4 @@
-import pytest
+
 from src.reid.mtmc_association import PersonGallery, MTMCAssociator
 from src.reid.spatial_constraints import SpatialConstraintValidator, CameraLocation
 

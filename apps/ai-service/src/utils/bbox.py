@@ -3,7 +3,7 @@ Bounding-box utility functions used by crop_saver and MTMC association.
 """
 from __future__ import annotations
 from typing import Tuple
-import numpy as np
+
 
 
 def clip_bbox(left: float, top: float, width: float, height: float,

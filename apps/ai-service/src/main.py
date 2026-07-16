@@ -7,7 +7,6 @@ import logging
 import os
 import sys
 import signal
-from typing import List
 
 # ---- Monorepo PYTHONPATH ----
 sys.path.insert(0, "/app")

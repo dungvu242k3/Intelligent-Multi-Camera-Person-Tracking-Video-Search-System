@@ -1,6 +1,6 @@
 import os
 import tempfile
-import pytest
+
 from src.tracker.nvdcf_tracker import load_tracker_config, NvDCFTrackerConfig
 
 

@@ -15,7 +15,7 @@ This parser is registered in pgie_yolov8.txt via:
 IMPORTANT: For production, compile this into a .so using the DeepStream Python
 parser wrapper or use a C++ parser. The Python function below is for reference.
 """
-import ctypes
+
 import logging
 from typing import List, Tuple
 

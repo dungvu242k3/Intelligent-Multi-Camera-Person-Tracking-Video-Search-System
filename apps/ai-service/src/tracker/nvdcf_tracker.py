@@ -6,8 +6,8 @@ from __future__ import annotations
 import logging
 import os
 import yaml
-from dataclasses import dataclass, asdict
-from typing import Optional
+from dataclasses import dataclass
+
 
 logger = logging.getLogger("ai_service.tracker")
 

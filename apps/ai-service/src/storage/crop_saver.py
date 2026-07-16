@@ -2,7 +2,7 @@ import cv2
 import logging
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional
+
 from packages.shared.storage.minio import MinioStorageClient
 
 logger = logging.getLogger("ai_service.storage")

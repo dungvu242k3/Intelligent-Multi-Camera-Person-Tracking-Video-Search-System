@@ -2,7 +2,7 @@ import logging
 import gi
 gi.require_version('Gst', '1.0')
 from gi.repository import Gst, GLib
-from typing import List, Dict
+from typing import List
 from pipelines.pipeline_builder import PipelineBuilder
 from plugins.probe_callbacks import DeepStreamProbeCallbacks
 
@@ -33,17 +33,17 @@ class DeepStreamPipeline:
 
         # 1. Add elements to pipeline
         # nvstreammux: Batch frames from multiple sources
-        muxer = self.builder.add_element("nvstreammux", "muxer")
+        self.builder.add_element("nvstreammux", "muxer")
         # PGIE: YOLO Multi-class detector
-        pgie = self.builder.add_element(pgie_plugin, "pgie")
+        self.builder.add_element(pgie_plugin, "pgie")
         # nvtracker: CUDA-accelerated tracking
-        tracker = self.builder.add_element("nvtracker", "tracker")
+        self.builder.add_element("nvtracker", "tracker")
         # SGIE: ReID feature extractor
         sgie = self.builder.add_element(sgie_plugin, "sgie")
         # nvvideoconvert: Color conversion before output/probe
-        convert = self.builder.add_element("nvvideoconvert", "convert")
+        self.builder.add_element("nvvideoconvert", "convert")
         # fakesink: Production sink (headless, no rendering overhead)
-        sink = self.builder.add_element("fakesink", "sink")
+        self.builder.add_element("fakesink", "sink")
 
         # 2. Configure Streammux
         # Set video frame batch sizes and dimensional norms
@@ -73,7 +73,7 @@ class DeepStreamPipeline:
         for idx, src_url in enumerate(self.sources):
             source_name = f"source_{idx}"
             # nvurisourcesrc handles file:// and rtsp:// paths automatically with auto-reconnection
-            source = self.builder.add_element("nvurisourcesrc", source_name)
+            self.builder.add_element("nvurisourcesrc", source_name)
             self.builder.set_properties(source_name, uri=src_url)
             # Link nvurisourcesrc src pad to muxer sink_%u request pad
             self.builder.link_request_pad(source_name, "muxer", pad_template="sink_%u", pad_index=idx)

@@ -8,9 +8,9 @@ Real-world constraint:
 """
 from __future__ import annotations
 import logging
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 
 logger = logging.getLogger("ai_service.spatial")
 
