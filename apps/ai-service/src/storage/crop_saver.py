@@ -3,7 +3,7 @@ import logging
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
-from apps.ai-service.src.storage.minio_client import MinioStorageClient
+from packages.shared.storage.minio import MinioStorageClient
 
 logger = logging.getLogger("ai_service.storage")
 

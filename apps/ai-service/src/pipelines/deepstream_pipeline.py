@@ -55,9 +55,10 @@ class DeepStreamPipeline:
             live_source=1
         )
 
-        # 3. Configure Inference and Tracker elements
+        # 3. Configure Inference, Tracker and Converter elements
         self.builder.set_properties("pgie", config_file_path=self.pgie_config)
         self.builder.set_properties("sgie", config_file_path=self.sgie_config)
+        self.builder.set_properties("convert", nvbuf_memory_type=3) # Unified Memory for NumPy access
         self.builder.set_properties("tracker",
             ll_config_file=self.tracker_config,
             ll_lib_file="/opt/nvidia/deepstream/deepstream/lib/libnvds_nvmultiobjecttracker.so"
