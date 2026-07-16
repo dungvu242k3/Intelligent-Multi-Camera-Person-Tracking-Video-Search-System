@@ -5,7 +5,7 @@ import uuid
 import random
 import asyncio
 import argparse
-from typing import List, Dict, Any
+from typing import List
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
@@ -15,8 +15,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"
 # Mock cv2 before importing any GStreamer or probe callback code
 sys.modules['cv2'] = MagicMock()
 
-from application.use_cases.process_tracking_event import ProcessTrackingEventUseCase
-from packages.domain.entities.person import Person
+from application.use_cases.process_tracking_event import ProcessTrackingEventUseCase  # noqa: E402
+from packages.domain.entities.person import Person  # noqa: E402
 
 class StressTestRunner:
     """Stress test runner simulating high-throughput camera telemetry events ingestion."""

@@ -2,10 +2,9 @@ import sys
 from unittest.mock import MagicMock
 sys.modules['cv2'] = MagicMock()
 
-import pytest
-from datetime import datetime, timezone
-from events.event_schemas import TrackingEvent, DetectionPayload, BoundingBox
-from plugins.probe_callbacks import CLASS_MAPPING
+from datetime import datetime, timezone  # noqa: E402
+from events.event_schemas import TrackingEvent, DetectionPayload, BoundingBox  # noqa: E402
+from plugins.probe_callbacks import CLASS_MAPPING  # noqa: E402
 
 def test_ai_event_generation_and_serialization():
     """Verifies that DetectionEvents are correctly serialized for Kafka delivery."""

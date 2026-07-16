@@ -1,6 +1,6 @@
 import pytest
 from datetime import datetime, timedelta, timezone
-from packages.domain.entities.tracking_event import BoundingBox, TrackingEvent
+from packages.domain.entities.tracking_event import BoundingBox
 from packages.domain.entities.person import Person
 
 def test_bounding_box_area():

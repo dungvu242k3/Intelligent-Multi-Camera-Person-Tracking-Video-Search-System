@@ -9,6 +9,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.
 
 from api.search_routes import router as search_router
 from packages.shared.api_errors import register_exception_handlers
+from packages.shared.vector.qdrant import QdrantVectorStore
 
 logging.basicConfig(
     level=logging.INFO,
@@ -16,8 +17,6 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger("search_service")
-
-from packages.shared.vector.qdrant import QdrantVectorStore
 
 _is_prod = os.getenv("ENV", "development") == "production"
 

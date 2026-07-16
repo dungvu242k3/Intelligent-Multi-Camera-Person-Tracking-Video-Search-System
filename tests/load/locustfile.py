@@ -110,7 +110,7 @@ async def run_standalone_http_benchmark(concurrency: int = 10, total_requests: i
     rps = total_requests / (sum(latencies) / 1000.0)
 
     print("\nBENCHMARK METRICS RESULTS:")
-    print(f"Status             : SUCCESS")
+    print("Status             : SUCCESS")
     print(f"Requests Completed : {total_requests}")
     print(f"Successful Calls   : {success_count}")
     print(f"Failed Calls       : {failure_count}")

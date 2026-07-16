@@ -1,4 +1,3 @@
-import pytest
 from services.health_checker import RtspHealthChecker
 
 def test_rtsp_host_port_parsing():

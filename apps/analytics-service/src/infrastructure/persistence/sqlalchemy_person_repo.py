@@ -1,6 +1,5 @@
 import uuid
 from typing import Any, Optional, cast
-from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from packages.domain.entities.person import Person

@@ -1,8 +1,6 @@
 import logging
-import uuid
 from datetime import datetime, timedelta, timezone
-from typing import List
-from sqlalchemy import select, delete, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
 from config.settings import settings
@@ -57,7 +55,6 @@ async def execute_cleanup_job() -> None:
             )
             tracking_rows = tracking_res.all()
             tracking_ids = [row[0] for row in tracking_rows]
-            tracking_pids = [row[1] for row in tracking_rows if row[1] is not None]
             tracking_crops = [row[2] for row in tracking_rows if row[2]]
             
             # 2. Get fire events crop paths

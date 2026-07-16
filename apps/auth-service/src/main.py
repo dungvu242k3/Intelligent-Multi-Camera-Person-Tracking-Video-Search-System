@@ -8,7 +8,8 @@ from contextlib import asynccontextmanager
 # Setup path to import packages correctly in monorepo
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../")))
 
-from api.auth_routes import router as auth_router, engine
+from sqlalchemy import text
+from api.auth_routes import router as auth_router, engine, AsyncSessionLocal
 from config.settings import settings as auth_settings
 from packages.shared.api_errors import register_exception_handlers
 
@@ -56,9 +57,6 @@ async def add_security_headers(request: Request, call_next):
 
 # Register endpoints
 app.include_router(auth_router, prefix="/api/v1/auth")
-
-from sqlalchemy import text
-from api.auth_routes import AsyncSessionLocal
 
 @app.get("/health", tags=["system"])
 async def health_check():

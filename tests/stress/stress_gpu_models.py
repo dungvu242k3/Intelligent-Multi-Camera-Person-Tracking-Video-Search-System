@@ -1,5 +1,3 @@
-import os
-import sys
 import time
 import argparse
 import torch
@@ -72,7 +70,7 @@ def run_gpu_benchmark(batch_size: int, iterations: int):
     else:
         print("[WARNING] CUDA GPU not found. Falling back to CPU mode benchmark.")
     print(f"Batch Size            : {batch_size}")
-    print(f"Warmup Iterations     : 10")
+    print("Warmup Iterations     : 10")
     print(f"Benchmark Iterations  : {iterations}")
     print("-" * 60)
 

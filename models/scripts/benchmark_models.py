@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 import time
-from typing import Tuple, List, Optional
+from typing import Tuple, List
 import numpy as np
 
 # Configure logging
@@ -93,7 +93,7 @@ def benchmark_tensorrt(model_path: str, input_shape: Tuple[int, ...], num_runs: 
     try:
         import tensorrt as trt
         import pycuda.driver as cuda
-        import pycuda.autoinit  # Required to initialize CUDA context
+        import pycuda.autoinit  # noqa: F401  # Required to initialize CUDA context
     except ImportError as e:
         logger.error(
             "TensorRT or PyCUDA Python bindings are missing. "
@@ -132,7 +132,7 @@ def benchmark_tensorrt(model_path: str, input_shape: Tuple[int, ...], num_runs: 
         stream = cuda.Stream()
         
         # Bindings mappings
-        bindings = [int(d_input), int(d_output)]
+        _bindings = [int(d_input), int(d_output)]
         
         logger.info(f"Starting {warmup_runs} warmup runs...")
         for _ in range(warmup_runs):

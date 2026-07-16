@@ -13,6 +13,7 @@ from api.camera_routes import router as camera_router
 from services.health_checker import RtspHealthChecker
 from infrastructure.persistence.database import engine, AsyncSessionLocal
 from config.settings import settings
+from sqlalchemy import text
 from packages.shared.api_errors import register_exception_handlers
 
 logging.basicConfig(
@@ -79,8 +80,6 @@ async def add_security_headers(request: Request, call_next):
 
 # Register endpoints
 app.include_router(camera_router, prefix="/api/v1")
-
-from sqlalchemy import text
 
 @app.get("/health", tags=["system"])
 async def health_check():

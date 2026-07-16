@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List
+from typing import Optional
 from urllib.parse import urlparse
 
 class CameraCreate(BaseModel):

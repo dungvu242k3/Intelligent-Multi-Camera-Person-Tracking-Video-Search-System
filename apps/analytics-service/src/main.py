@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../")))
 
 from presentation.api.v1.tracking_routes import router as tracking_router
+from sqlalchemy import text
 from infrastructure.persistence.database import engine, AsyncSessionLocal
 from infrastructure.persistence.sqlalchemy_person_repo import SqlAlchemyPersonRepository
 from infrastructure.persistence.sqlalchemy_tracking_repo import SqlAlchemyTrackingRepository
@@ -144,8 +145,6 @@ async def add_security_headers(request: Request, call_next):
 
 # Mount API Routers
 app.include_router(tracking_router, prefix="/api/v1")
-
-from sqlalchemy import text
 
 @app.get("/health", tags=["system"])
 async def health_check():

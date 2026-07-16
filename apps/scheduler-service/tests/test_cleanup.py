@@ -1,10 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timezone, timedelta
-
 # Import target
 from src.jobs.cleanup_job import execute_cleanup_job
-from src.config.settings import settings
 
 
 @pytest.mark.asyncio

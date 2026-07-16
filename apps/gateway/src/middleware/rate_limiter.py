@@ -1,8 +1,7 @@
 import time
 import logging
 import threading
-from typing import Dict, List, Optional
-from fastapi import HTTPException, status
+from typing import Dict, List
 from config.settings import settings
 
 logger = logging.getLogger("gateway.rate_limiter")

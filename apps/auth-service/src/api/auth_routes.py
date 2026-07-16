@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import AsyncGenerator, Dict, Any, Optional
+from typing import AsyncGenerator, Optional
 from fastapi import APIRouter, Body, Cookie, Depends, HTTPException, Response, status
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import select
@@ -150,7 +150,7 @@ async def refresh_token(
             detail="Refresh token is invalid or has expired"
         )
 
-    stmt = select(User).where(User.id == payload.get("sub"), User.is_active == True)
+    stmt = select(User).where(User.id == payload.get("sub"), User.is_active)
     result = await db.execute(stmt)
     user = result.scalars().first()
     if not user:

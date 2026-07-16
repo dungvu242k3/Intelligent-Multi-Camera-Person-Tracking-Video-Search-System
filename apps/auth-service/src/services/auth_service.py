@@ -58,7 +58,7 @@ class AuthService:
         """
         try:
             # Query user by email address
-            stmt = select(User).where(User.email == email, User.is_active == True)
+            stmt = select(User).where(User.email == email, User.is_active)
             result = await db.execute(stmt)
             user = result.scalars().first()
             

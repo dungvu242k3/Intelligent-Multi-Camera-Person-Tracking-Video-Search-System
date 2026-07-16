@@ -4,7 +4,7 @@ import time
 import random
 import asyncio
 import argparse
-from typing import List, Dict, Any
+from typing import List, Dict
 
 # Setup monorepo path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))

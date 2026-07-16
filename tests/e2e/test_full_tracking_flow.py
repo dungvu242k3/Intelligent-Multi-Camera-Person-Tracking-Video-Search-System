@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock, MagicMock
 from datetime import datetime, timezone
 from application.use_cases.process_tracking_event import ProcessTrackingEventUseCase
 from packages.domain.entities.person import Person
-from events.event_schemas import TrackingEvent, DetectionPayload, BoundingBox
 
 @pytest.mark.asyncio
 async def test_end_to_end_tracking_and_db_flow():

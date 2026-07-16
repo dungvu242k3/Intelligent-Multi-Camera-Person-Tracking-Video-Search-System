@@ -1,10 +1,10 @@
 import logging
 import gi
 gi.require_version('Gst', '1.0')
-from gi.repository import Gst, GLib
-from typing import List
-from pipelines.pipeline_builder import PipelineBuilder
-from plugins.probe_callbacks import DeepStreamProbeCallbacks
+from gi.repository import Gst, GLib  # noqa: E402
+from typing import List  # noqa: E402
+from pipelines.pipeline_builder import PipelineBuilder  # noqa: E402
+from plugins.probe_callbacks import DeepStreamProbeCallbacks  # noqa: E402
 
 logger = logging.getLogger("ai_service.pipeline")
 

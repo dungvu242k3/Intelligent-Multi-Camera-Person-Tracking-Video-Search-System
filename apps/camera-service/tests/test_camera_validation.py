@@ -1,6 +1,6 @@
 import pytest
 from pydantic import ValidationError
-from packages.contracts.dto.camera import CameraCreate, CameraUpdate
+from packages.contracts.dto.camera import CameraCreate
 
 def test_camera_create_validation_success():
     """Verifies that valid data successfully creates a CameraCreate DTO."""
