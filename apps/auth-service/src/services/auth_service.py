@@ -60,6 +60,9 @@ class AuthService:
             user = result.scalars().first()
             
             if not user:
+                # Perform a dummy bcrypt hash check to mitigate timing side-channel attacks
+                dummy_hash = "$2b$12$L7R2Q6sP.e2fD8K7G5J2ae9M4v3t8y1z5u6p7w8q9r0s1t2u3v4w5"
+                bcrypt.checkpw(password.encode("utf-8"), dummy_hash.encode("utf-8"))
                 logger.info(f"Authentication attempt failed: User with email '{email}' not found.")
                 return None
                 
