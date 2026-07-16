@@ -15,8 +15,8 @@ class SearchService:
             logger.warning(f"Invalid embedding dimension size submitted: {len(embedding)}")
             return []
             
-        # Run blocking vector query inside threadpool or directly
-        matches = self.vector_store.search_similar(
+        # Await the async vector query
+        matches = await self.vector_store.search_similar(
             embedding=embedding,
             limit=limit,
             score_threshold=threshold

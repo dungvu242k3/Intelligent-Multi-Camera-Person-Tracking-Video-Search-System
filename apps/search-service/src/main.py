@@ -15,11 +15,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger("search_service")
 
+from packages.shared.vector.qdrant import QdrantVectorStore
+
+_is_prod = os.getenv("ENV", "development") == "production"
+
 # FastAPI App definition
 app = FastAPI(
     title="Intelligent MCPT — Search Service",
     description="Vector database query interface to identify matching person profiles.",
-    version="1.0.0"
+    version="1.0.0",
+    docs_url=None if _is_prod else "/docs",
+    redoc_url=None if _is_prod else "/redoc",
 )
 
 # Register routes
@@ -27,7 +33,14 @@ app.include_router(search_router, prefix="/api/v1")
 
 @app.get("/health", tags=["system"])
 async def health_check():
-    return {"status": "healthy", "service": "search-service"}
+    """P3 #17: Verifies vector store connectivity for readiness probes."""
+    try:
+        store = QdrantVectorStore()
+        # Probe Qdrant collection listing to verify connection
+        await store.client.get_collections()
+        return {"status": "healthy", "service": "search-service", "qdrant": "connected"}
+    except Exception:
+        return {"status": "degraded", "service": "search-service", "qdrant": "disconnected"}
 
 @app.get("/metrics", tags=["system"])
 async def metrics():

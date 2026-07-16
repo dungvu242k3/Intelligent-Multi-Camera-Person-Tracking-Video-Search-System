@@ -11,21 +11,24 @@ class SqlAlchemyPersonRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_by_id(self, person_id: uuid.UUID) -> Optional[Person]:
+    async def get_by_id(self, person_id: uuid.UUID, for_update: bool = False) -> Optional[Person]:
         """Fetches a person by ID and maps it to domain entity."""
-        result = await self.session.execute(
-            select(PersonModel).where(PersonModel.id == person_id)
-        )
+        stmt = select(PersonModel).where(PersonModel.id == person_id)
+        if for_update:
+            stmt = stmt.with_for_update()
+        result = await self.session.execute(stmt)
         model = result.scalar_one_or_none()
         if not model:
             return None
         return self._to_entity(model)
 
     async def upsert_person(self, person: Person) -> Person:
-        """Saves or updates a Person identity model."""
-        result = await self.session.execute(
-            select(PersonModel).where(PersonModel.id == person.id)
-        )
+        """Saves or updates a Person identity model. 
+        Note: Transaction commits are managed by the orchestrator unit-of-work.
+        """
+        # Read the person row with for_update to prevent concurrent update anomalies
+        stmt = select(PersonModel).where(PersonModel.id == person.id).with_for_update()
+        result = await self.session.execute(stmt)
         model = result.scalar_one_or_none()
         
         if not model:
@@ -45,7 +48,7 @@ class SqlAlchemyPersonRepository:
             model.last_seen = person.last_seen
             model.total_appearances = person.total_appearances
 
-        await self.session.commit()
+        # Commit is deferred to the main transaction boundary in main.py callback
         return self._to_entity(model)
 
     def _to_entity(self, model: PersonModel) -> Person:
