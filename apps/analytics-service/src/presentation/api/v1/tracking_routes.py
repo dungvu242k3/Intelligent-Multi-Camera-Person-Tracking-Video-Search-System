@@ -1,6 +1,6 @@
 import uuid
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from infrastructure.persistence.database import get_db_session
 from infrastructure.persistence.sqlalchemy_tracking_repo import SqlAlchemyTrackingRepository
@@ -10,7 +10,7 @@ router = APIRouter(prefix="/tracking", tags=["tracking"])
 
 @router.get("/events", response_model=List[TrackingEventResponse])
 async def get_recent_tracking_events(
-    limit: int = 50,
+    limit: int = Query(default=50, ge=1, le=200, description="Max number of events to return (1-200)"),
     db: AsyncSession = Depends(get_db_session)
 ):
     """Retrieves the most recent tracking event logs."""

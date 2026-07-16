@@ -18,6 +18,13 @@ class GatewaySettings(BaseSettings):
     RATE_LIMIT_REQUESTS_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_REQUESTS_PER_MINUTE", "60"))
     RATE_LIMIT_ENABLED: bool = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
     SERVICE_NAME: str = "api-gateway"
+    
+    # Internal service-to-service authentication key
+    INTERNAL_SERVICE_KEY: str = os.getenv(
+        "INTERNAL_SERVICE_KEY",
+        "change_this_internal_key_in_production"
+    )
+    ENV: str = os.getenv("ENV", "development")
 
     class Config:
         env_file = ".env"

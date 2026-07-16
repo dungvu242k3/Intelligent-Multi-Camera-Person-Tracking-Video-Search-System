@@ -15,6 +15,7 @@ class AuthServiceSettings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     SERVICE_NAME: str = "auth-service"
+    ENV: str = os.getenv("ENV", "development")
 
     class Config:
         env_file = ".env"

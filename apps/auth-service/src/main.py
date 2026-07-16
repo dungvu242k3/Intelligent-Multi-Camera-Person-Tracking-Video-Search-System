@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../")))
 
 from api.auth_routes import router as auth_router, engine
+from config.settings import settings as auth_settings
 
 # Configure structured logging
 logging.basicConfig(
@@ -26,19 +27,32 @@ async def lifespan(app: FastAPI):
     await engine.dispose()
     logger.info("Auth service database engine disposed.")
 
+_is_prod = auth_settings.ENV == "production"
+
 app = FastAPI(
     title="Intelligent MCPT — Auth Service",
     description="Manages user credential registrations, logins, and token validation checks.",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    docs_url=None if _is_prod else "/docs",
+    redoc_url=None if _is_prod else "/redoc",
 )
 
 # Register endpoints
 app.include_router(auth_router, prefix="/api/v1/auth")
 
+from sqlalchemy import text
+from api.auth_routes import AsyncSessionLocal
+
 @app.get("/health", tags=["system"])
 async def health_check():
-    return {"status": "healthy", "service": "auth-service"}
+    """P3 #17: Verifies database connectivity for readiness probes."""
+    try:
+        async with AsyncSessionLocal() as session:
+            await session.execute(text("SELECT 1"))
+        return {"status": "healthy", "service": "auth-service", "db": "connected"}
+    except Exception:
+        return {"status": "degraded", "service": "auth-service", "db": "disconnected"}
 
 @app.get("/metrics", tags=["system"])
 async def metrics():

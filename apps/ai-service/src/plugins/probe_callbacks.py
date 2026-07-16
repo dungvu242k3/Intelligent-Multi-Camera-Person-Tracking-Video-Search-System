@@ -1,7 +1,7 @@
 import logging
 import numpy as np
 import pyds
-from datetime import datetime
+from datetime import datetime, timezone
 from packages.shared.messaging.kafka import KafkaEventProducer
 from storage.crop_saver import CropSaver
 
@@ -44,7 +44,7 @@ class DeepStreamProbeCallbacks:
 
             frame_number = frame_meta.frame_num
             camera_id = str(frame_meta.source_id) # Stream ID
-            timestamp = datetime.utcnow().isoformat() + "Z"
+            timestamp = datetime.now(timezone.utc).isoformat() + "Z"
 
             # Retrieve the raw frame image as a NumPy array (efficient NVMM mapping)
             frame_np = None
