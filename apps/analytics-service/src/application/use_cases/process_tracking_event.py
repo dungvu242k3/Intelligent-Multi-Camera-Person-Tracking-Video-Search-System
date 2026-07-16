@@ -4,9 +4,9 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 from packages.domain.entities.person import Person
 from packages.domain.entities.tracking_event import TrackingEvent, BoundingBox
-from apps.analytics-service.src.infrastructure.persistence.sqlalchemy_person_repo import SqlAlchemyPersonRepository
-from apps.analytics-service.src.infrastructure.persistence.sqlalchemy_tracking_repo import SqlAlchemyTrackingRepository
-from apps.analytics-service.src.infrastructure.external.qdrant_client import QdrantVectorStore
+from infrastructure.persistence.sqlalchemy_person_repo import SqlAlchemyPersonRepository
+from infrastructure.persistence.sqlalchemy_tracking_repo import SqlAlchemyTrackingRepository
+from packages.shared.vector.qdrant import QdrantVectorStore
 
 logger = logging.getLogger("analytics_service.use_cases")
 

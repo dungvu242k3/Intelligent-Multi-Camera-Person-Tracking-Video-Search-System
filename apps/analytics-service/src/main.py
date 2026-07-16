@@ -8,14 +8,14 @@ from contextlib import asynccontextmanager
 # Setup path to import packages correctly in monorepo
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../")))
 
-from apps.analytics-service.src.presentation.api.v1.tracking_routes import router as tracking_router
-from apps.analytics-service.src.infrastructure.persistence.database import engine, AsyncSessionLocal
-from apps.analytics-service.src.infrastructure.persistence.sqlalchemy_person_repo import SqlAlchemyPersonRepository
-from apps.analytics-service.src.infrastructure.persistence.sqlalchemy_tracking_repo import SqlAlchemyTrackingRepository
-from apps.analytics-service.src.infrastructure.external.qdrant_client import QdrantVectorStore
-from apps.analytics-service.src.infrastructure.messaging.kafka_consumer import KafkaEventConsumer
-from apps.analytics-service.src.application.use_cases.process_tracking_event import ProcessTrackingEventUseCase
-from apps.ai-service.src.events.kafka_producer import KafkaEventProducer
+from presentation.api.v1.tracking_routes import router as tracking_router
+from infrastructure.persistence.database import engine, AsyncSessionLocal
+from infrastructure.persistence.sqlalchemy_person_repo import SqlAlchemyPersonRepository
+from infrastructure.persistence.sqlalchemy_tracking_repo import SqlAlchemyTrackingRepository
+from packages.shared.vector.qdrant import QdrantVectorStore
+from infrastructure.messaging.kafka_consumer import KafkaEventConsumer
+from application.use_cases.process_tracking_event import ProcessTrackingEventUseCase
+from packages.shared.messaging.kafka import KafkaEventProducer
 
 logging.basicConfig(
     level=logging.INFO,
