@@ -114,4 +114,10 @@ async def verify_token(request: TokenVerifyRequest):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token is invalid or has expired"
         )
+    # Check for token type confusion (ensure it's not a refresh token)
+    if payload.get("type") != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token type: Access token expected"
+        )
     return {"status": "valid", "payload": payload}

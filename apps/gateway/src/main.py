@@ -2,9 +2,11 @@ import logging
 import os
 import sys
 from contextlib import asynccontextmanager
+from typing import Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
+import jwt
 from pydantic import BaseModel
 
 # Setup path to import packages correctly in monorepo
@@ -61,6 +63,44 @@ SERVICE_MAPPING = {
     "analytics": settings.ANALYTICS_SERVICE_URL,
 }
 
+def verify_token(authorization_header: Optional[str]) -> Dict[str, Any]:
+    """Decodes and validates a JWT Access Token. Protects against token type confusion."""
+    if not authorization_header:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authorization credentials"
+        )
+    parts = authorization_header.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authorization schema. Use 'Bearer <token>'"
+        )
+    token = parts[1]
+    try:
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM]
+        )
+        # Token type check (must be access token, not refresh token)
+        if payload.get("type") != "access":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type: Access token expected"
+            )
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization credentials have expired"
+        )
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authorization token"
+        )
+
 # 1. Reverse Proxy Routing Logic
 @app.api_route("/api/v1/{service}/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy_request(service: str, path: str, request: Request):
@@ -72,6 +112,22 @@ async def proxy_request(service: str, path: str, request: Request):
             detail=f"Downstream service '{service}' not registered in Gateway configurations."
         )
 
+    # Enforce authentication gate on non-public routes
+    is_public = False
+    if service == "auth" and path in ["login", "register", "verify"]:
+        is_public = True
+
+    # Filter out client-specific host headers
+    headers = dict(request.headers)
+    headers.pop("host", None)
+
+    if not is_public:
+        auth_header = request.headers.get("Authorization")
+        payload = verify_token(auth_header)
+        # Propagate verified user identity to downstreams via security headers
+        headers["X-User-Id"] = payload.get("sub", "")
+        headers["X-User-Role"] = str(payload.get("role_id", ""))
+
     target_base_url = SERVICE_MAPPING[service]
     
     # Reconstruct target URL retaining paths and query parameters
@@ -80,10 +136,6 @@ async def proxy_request(service: str, path: str, request: Request):
     if query:
         url = f"{url}?{query}"
 
-    # Filter out client-specific host headers
-    headers = dict(request.headers)
-    headers.pop("host", None)
-    
     body = await request.body()
     logger.debug(f"Proxying request {request.method} -> {url}")
 
