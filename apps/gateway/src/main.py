@@ -14,6 +14,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.
 
 from config.settings import settings
 from websocket.manager import manager
+from middleware.rate_limiter import rate_limiter
 
 # Configure logging
 logging.basicConfig(
@@ -110,6 +111,14 @@ async def proxy_request(service: str, path: str, request: Request):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Downstream service '{service}' not registered in Gateway configurations."
+        )
+
+    # Enforce rate limiting threshold
+    client_ip = request.client.host if request.client else "unknown"
+    if not rate_limiter.check_rate_limit(client_ip):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit threshold exceeded. Too many requests. Please try again later."
         )
 
     # Enforce authentication gate on non-public routes
