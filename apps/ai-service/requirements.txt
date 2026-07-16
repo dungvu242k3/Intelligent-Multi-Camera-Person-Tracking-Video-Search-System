@@ -1,5 +1,21 @@
+# DeepStream AI Service Python dependencies
+# NOTE: pyds (DeepStream Python bindings) is compiled inside the container from
+# NVIDIA's deepstream_python_apps repo and NOT listed here.
+
+# Core inference pipeline
 confluent-kafka>=2.4.0
-minio>=7.2.7
 opencv-python-headless>=4.9.0.80
 numpy>=1.23.0
 pyyaml>=6.0.1
+
+# Storage
+minio>=7.2.7
+
+# Vector database
+qdrant-client>=1.9.0
+
+# GPU monitoring (nvidia-ml-py3)
+nvidia-ml-py3>=7.352.0
+
+# Utilities
+python-dotenv>=1.0.0

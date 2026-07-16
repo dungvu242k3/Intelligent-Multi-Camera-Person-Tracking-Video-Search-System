@@ -40,3 +40,12 @@ class MinioStorageClient:
         except Exception as e:
             logger.error(f"Failed to upload object {object_name} to bucket {bucket_name}: {e}")
             raise e
+
+    def delete_object(self, bucket_name: str, object_name: str) -> None:
+        """Removes an object from the specified MinIO bucket."""
+        try:
+            self.client.remove_object(bucket_name, object_name)
+            logger.info(f"Successfully deleted object {object_name} from bucket {bucket_name}")
+        except Exception as e:
+            logger.error(f"Failed to delete object {object_name} from bucket {bucket_name}: {e}")
+            raise e

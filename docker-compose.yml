@@ -473,7 +473,14 @@ services:
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: all
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_DETECTION_TOPIC: detection-events
       MINIO_ENDPOINT: minio:9000
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: "6333"
+      REID_MATCH_THRESHOLD: "0.75"
+      PGIE_CONFIG: /app/apps/ai-service/configs/pgie_yolov8.txt
+      SGIE_CONFIG: /app/apps/ai-service/configs/sgie_reid.txt
+      TRACKER_CONFIG: /app/apps/ai-service/configs/tracker_config.yml
     volumes:
       - ./models:/app/models
       - ./datasets:/app/datasets
@@ -481,6 +488,8 @@ services:
       kafka:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      qdrant:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully

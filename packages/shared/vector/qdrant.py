@@ -77,3 +77,19 @@ class QdrantVectorStore:
         except Exception as e:
             logger.error(f"Failed to query similar vectors in Qdrant: {e}")
             return []
+
+    async def delete_embeddings(self, person_ids: List[uuid.UUID]) -> None:
+        """Deletes vector points corresponding to person_ids from Qdrant."""
+        await self._ensure_collection()
+        try:
+            string_ids = [str(pid) for pid in person_ids]
+            await self.client.delete(
+                collection_name=self.collection_name,
+                points_selector=qmodels.PointIdsList(
+                    points=string_ids
+                )
+            )
+            logger.info(f"Deleted {len(string_ids)} points from Qdrant collection {self.collection_name}")
+        except Exception as e:
+            logger.error(f"Failed to delete embeddings from Qdrant: {e}")
+            raise e

@@ -3,8 +3,8 @@ import gi
 gi.require_version('Gst', '1.0')
 from gi.repository import Gst, GLib
 from typing import List, Dict
-from apps.ai-service.src.pipelines.pipeline_builder import PipelineBuilder
-from apps.ai-service.src.plugins.probe_callbacks import DeepStreamProbeCallbacks
+from pipelines.pipeline_builder import PipelineBuilder
+from plugins.probe_callbacks import DeepStreamProbeCallbacks
 
 logger = logging.getLogger("ai_service.pipeline")
 

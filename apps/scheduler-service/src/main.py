@@ -32,20 +32,14 @@ async def run_data_cleanup_job() -> None:
         f"Interval: {settings.CLEANUP_INTERVAL_HOURS} hours, Retention: {settings.RETENTION_DAYS} days."
     )
     
+    # Import the actual cleanup job executor
+    from jobs.cleanup_job import execute_cleanup_job
+    
     while keep_running:
         try:
             logger.info("Starting scheduled data retention policy scan...")
-            
-            # 1. Scaffolding for Qdrant vector deletes (Cleanup vectors older than retention days)
-            logger.info(f"Scanning Qdrant collection for vectors older than {settings.RETENTION_DAYS} days...")
-            # actual: client.delete(collection_name="person_embeddings", filter=...)
-            
-            # 2. Scaffolding for MinIO crop deletes (Cleanup jpeg crops older than retention days)
-            logger.info(f"Scanning MinIO 'detection-crops' bucket for objects older than {settings.RETENTION_DAYS} days...")
-            # actual: client.remove_objects(...)
-            
+            await execute_cleanup_job()
             logger.info("Retention policy scan completed successfully. Next run in config interval.")
-            
         except Exception as e:
             logger.error(f"Error occurred during scheduled cleanup run: {e}", exc_info=True)
             
@@ -60,6 +54,11 @@ async def lifespan(app: FastAPI):
     """Lifecycle event context manager handling cleanup background task."""
     global cleanup_task, keep_running
     logger.info("Starting up Scheduler Service...")
+    
+    # Wait for database readiness before executing cleanup tasks
+    from packages.shared.db_startup import wait_for_db
+    await wait_for_db(settings.DATABASE_URL)
+    
     keep_running = True
     cleanup_task = asyncio.create_task(run_data_cleanup_job())
     
