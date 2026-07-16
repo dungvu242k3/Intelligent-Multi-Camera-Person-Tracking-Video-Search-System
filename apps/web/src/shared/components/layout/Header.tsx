@@ -51,12 +51,6 @@ export default function Header() {
           <span>{locale === 'en' ? 'EN' : 'VI'}</span>
         </button>
 
-        {/* API Server status */}
-        <div style={styles.badge}>
-          <div style={styles.dotActive}></div>
-          <span style={styles.badgeText}>{t('header.apiCore')}</span>
-        </div>
-
         {/* WebSocket realtime indicator */}
         <div style={wsConnected ? styles.badgeActive : styles.badgeOffline}>
           <Radio size={14} className={wsConnected ? 'pulse-red-glow' : ''} />

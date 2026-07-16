@@ -103,8 +103,8 @@ export const i18nDict = {
     // Video Test page
     'vtest.title': 'Chạy Thử Nghiệm Mô Hình',
     'vtest.subtitle': 'Tải lên video clip cục bộ hoặc cung cấp link luồng RTSP để chạy thử nghiệm độ chính xác của YOLOv8 và bộ định danh ReID.',
-    'vtest.tabUpload': 'Tải Lên File Video',
-    'vtest.tabUrl': 'Link Luồng Video / URL',
+    'vtest.tabUpload': 'Upload Video File',
+    'vtest.tabUrl': 'Stream Link / URL',
     'vtest.cancel': 'Hủy Chạy',
     'vtest.reset': 'Thiết Lập Lại & Chạy Thử Mới',
     'vtest.exportJson': 'Xuất File JSON',
