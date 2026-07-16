@@ -1,5 +1,5 @@
-import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { useTranslation } from '../../hooks/useTranslation.ts';
 import { 
   LayoutDashboard, 
   Tv, 
@@ -11,13 +11,15 @@ import {
 } from 'lucide-react';
 
 export default function Sidebar() {
+  const { t } = useTranslation();
+  
   const links = [
-    { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/live', label: 'Live Monitor', icon: Tv },
-    { to: '/search', label: 'Person Search', icon: Search },
-    { to: '/cameras', label: 'Cameras', icon: Camera },
-    { to: '/video-test', label: 'Video Test', icon: FileVideo },
-    { to: '/fire-detection', label: 'Fire Alarms', icon: Flame },
+    { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard },
+    { to: '/live', label: t('nav.liveMonitor'), icon: Tv },
+    { to: '/search', label: t('nav.personSearch'), icon: Search },
+    { to: '/cameras', label: t('nav.cameras'), icon: Camera },
+    { to: '/video-test', label: t('nav.videoTest'), icon: FileVideo },
+    { to: '/fire-detection', label: t('nav.fireAlarms'), icon: Flame },
   ];
 
   return (

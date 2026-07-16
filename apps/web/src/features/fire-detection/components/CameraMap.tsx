@@ -1,5 +1,5 @@
-import React from 'react';
 import { Camera } from 'lucide-react';
+import { useTranslation } from '../../../shared/hooks/useTranslation.ts';
 
 interface CameraNode {
   id: string;
@@ -15,21 +15,23 @@ interface CameraMapProps {
 }
 
 export default function CameraMap({ cameras, activeFires, onCameraSelect }: CameraMapProps) {
+  const { t } = useTranslation();
+
   return (
     <div style={styles.mapCard} className="card">
       <div style={styles.mapHeader}>
         <div style={styles.titleGroup}>
           <Camera size={20} color="var(--color-primary)" />
-          <h3 style={styles.title}>Facility Interactive Floor Map</h3>
+          <h3 style={styles.title}>{t('fire.mapTitle')}</h3>
         </div>
         <div style={styles.legend}>
           <div style={styles.legendItem}>
             <div style={styles.legendDotNormal}></div>
-            <span style={styles.legendText}>Nominal</span>
+            <span style={styles.legendText}>{t('fire.legendNominal')}</span>
           </div>
           <div style={styles.legendItem}>
             <div style={styles.legendDotFire} className="pulse-red-glow"></div>
-            <span style={styles.legendText}>Active Fire</span>
+            <span style={styles.legendText}>{t('fire.legendActive')}</span>
           </div>
         </div>
       </div>

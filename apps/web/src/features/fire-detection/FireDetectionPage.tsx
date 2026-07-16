@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Flame, Sparkles } from 'lucide-react';
+import { useTranslation } from '../../shared/hooks/useTranslation.ts';
 import CameraMap from './components/CameraMap.tsx';
 import FireHistorySidebar from './components/FireHistorySidebar.tsx';
 
@@ -19,6 +20,7 @@ interface FireEvent {
 }
 
 export default function FireDetectionPage() {
+  const { t } = useTranslation();
   // Configured facility cameras list
   const cameras: CameraNode[] = [
     { id: 'cam_1', name: 'Main Lobby Entrance', x: 150, y: 220 },
@@ -123,10 +125,10 @@ export default function FireDetectionPage() {
           <div style={styles.titleBlock}>
             <div style={styles.titleGroup}>
               <Flame size={28} color="var(--color-danger)" className="pulse-red-glow" />
-              <h1 style={styles.title}>Fire Surveillance Center</h1>
+              <h1 style={styles.title}>{t('fire.title')}</h1>
             </div>
             <p style={styles.subtitle}>
-              Monitor real-time visual alerts and smoke signatures. Red blinking markers represent localized fire incidents.
+              {t('fire.subtitle')}
             </p>
           </div>
 
@@ -141,7 +143,7 @@ export default function FireDetectionPage() {
           <div className="card" style={styles.devCard}>
             <div style={styles.devHeading}>
               <Sparkles size={16} color="var(--color-primary)" />
-              <span style={{ fontSize: '13px', fontWeight: 600 }}>Developer Simulation Controls</span>
+              <span style={{ fontSize: '13px', fontWeight: 600 }}>{t('fire.devControls')}</span>
             </div>
             <div style={styles.btnRow}>
               <button 
@@ -150,7 +152,7 @@ export default function FireDetectionPage() {
                 className="btn-primary" 
                 style={styles.simBtn}
               >
-                Trigger Fire (Loading Dock A)
+                {t('fire.btnTriggerDock')}
               </button>
               <button 
                 type="button" 
@@ -158,7 +160,7 @@ export default function FireDetectionPage() {
                 className="btn-primary" 
                 style={styles.simBtn}
               >
-                Trigger Fire (Server Room)
+                {t('fire.btnTriggerServer')}
               </button>
               <button 
                 type="button" 
@@ -166,7 +168,7 @@ export default function FireDetectionPage() {
                 className="btn-secondary" 
                 style={styles.clearBtn}
               >
-                Clear All Alarms
+                {t('fire.btnClear')}
               </button>
             </div>
           </div>

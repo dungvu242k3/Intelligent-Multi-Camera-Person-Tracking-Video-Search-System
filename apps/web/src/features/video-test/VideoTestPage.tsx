@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { FileVideo, Link, RotateCcw } from 'lucide-react';
+import { useTranslation } from '../../shared/hooks/useTranslation.ts';
 import VideoUploader from './components/VideoUploader.tsx';
 import UrlInput from './components/UrlInput.tsx';
 import AnalysisProgress from './components/AnalysisProgress.tsx';
@@ -25,6 +26,7 @@ interface TimelineEntry {
 }
 
 export default function VideoTestPage() {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<Tab>('upload');
   const [phase, setPhase] = useState<Phase>('idle');
   const [statusText, setStatusText] = useState('');
@@ -45,9 +47,21 @@ export default function VideoTestPage() {
   // Simulation interval pointer
   const [simInterval, setSimInterval] = useState<number | null>(null);
 
+  // Secure client-side error mapper to prevent leaking DB exceptions or variables
+  const formatSecureError = (err: any): string => {
+    if (err.response) {
+      const status = err.response.status;
+      if (status === 401) return t('error.401');
+      if (status === 403) return t('error.403');
+      if (status === 429) return t('error.429');
+      if (status === 500) return t('error.500');
+    }
+    return t('error.generic');
+  };
+
   const startAnalysisSimulation = () => {
     setPhase('processing');
-    setStatusText('Uploading video payload to API Gateway...');
+    setStatusText(t('vtest.progress.uploading'));
     setProgressPercent(5);
     setStats({ persons: 0, fires: 0, objects: 0, fps: 0 });
 
@@ -61,9 +75,9 @@ export default function VideoTestPage() {
       currentPercent += 5;
       
       if (currentPercent <= 20) {
-        setStatusText('Uploading video payload to API Gateway...');
+        setStatusText(t('vtest.progress.uploading'));
       } else if (currentPercent <= 40) {
-        setStatusText('Initializing hardware accelerated GPU decoder (nvv4l2decoder)...');
+        setStatusText(t('vtest.progress.initDecoder'));
       } else if (currentPercent <= 80) {
         // Simulating frames analysis
         const sec = Math.floor((currentPercent - 40) / 4);
@@ -84,7 +98,7 @@ export default function VideoTestPage() {
           objects: oInc
         });
 
-        setStatusText(`Analyzing frames... Processing frame ${Math.floor(currentPercent * 25)}/2500`);
+        setStatusText(`${t('vtest.progress.analyzing')} ${Math.floor(currentPercent * 25)}/2500`);
         setStats({
           persons: personCount,
           fires: fireCount,
@@ -92,7 +106,7 @@ export default function VideoTestPage() {
           fps: 28.5 + Math.random() * 2,
         });
       } else if (currentPercent < 100) {
-        setStatusText('Aggregating DeepStream metadata metrics & saving crops...');
+        setStatusText(t('vtest.progress.aggregating'));
       } else {
         // Finished
         clearInterval(interval);
@@ -149,7 +163,7 @@ export default function VideoTestPage() {
     }).then(res => {
       logger.info("Real backend upload succeeded:", res.data);
     }).catch(err => {
-      logger.warning("Real backend not responding, running under developer simulation client mode:", err.message);
+      logger.warning("Real backend connection failed. Secure client-side error mapped:", formatSecureError(err));
     });
   };
 
@@ -161,7 +175,7 @@ export default function VideoTestPage() {
     axios.post('http://localhost:8000/api/v1/cameras/test-url', { url }).then(res => {
       logger.info("Real backend URL submitted:", res.data);
     }).catch(err => {
-      logger.warning("Real backend URL post failed, fallback to simulation mode:", err.message);
+      logger.warning("Real backend URL post failed. Secure client-side error mapped:", formatSecureError(err));
     });
   };
 
@@ -213,10 +227,10 @@ export default function VideoTestPage() {
       <div style={styles.titleBlock}>
         <div style={styles.titleGroup}>
           <FileVideo size={28} color="var(--color-primary)" />
-          <h1 style={styles.title}>Model Trial Runs</h1>
+          <h1 style={styles.title}>{t('vtest.title')}</h1>
         </div>
         <p style={styles.subtitle}>
-          Upload local recorded clips or supply surveillance RTSP stream links to test YOLOv8 detection and ReID tracking accuracy.
+          {t('vtest.subtitle')}
         </p>
       </div>
 
@@ -234,7 +248,7 @@ export default function VideoTestPage() {
               }}
             >
               <FileVideo size={16} />
-              <span>Upload Video File</span>
+              <span>{t('vtest.tabUpload')}</span>
             </button>
             <button 
               type="button" 
@@ -246,7 +260,7 @@ export default function VideoTestPage() {
               }}
             >
               <Link size={16} />
-              <span>Stream Link / URL</span>
+              <span>{t('vtest.tabUrl')}</span>
             </button>
           </div>
 
@@ -269,7 +283,7 @@ export default function VideoTestPage() {
             stats={stats} 
           />
           <button type="button" onClick={resetPage} className="btn-secondary" style={styles.cancelBtn}>
-            Cancel Run
+            {t('vtest.cancel')}
           </button>
         </div>
       )}
@@ -291,7 +305,7 @@ export default function VideoTestPage() {
           />
           <button type="button" onClick={resetPage} className="btn-secondary" style={styles.resetBtn}>
             <RotateCcw size={16} />
-            <span>Reset & Run Another Test</span>
+            <span>{t('vtest.reset')}</span>
           </button>
         </>
       )}

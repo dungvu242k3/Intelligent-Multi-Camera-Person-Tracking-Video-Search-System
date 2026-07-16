@@ -1,5 +1,6 @@
 import React from 'react';
 import { User, Flame, Package, Gauge, RefreshCw } from 'lucide-react';
+import { useTranslation } from '../../../shared/hooks/useTranslation.ts';
 
 interface AnalysisProgressProps {
   statusText: string;
@@ -13,6 +14,8 @@ interface AnalysisProgressProps {
 }
 
 export default function AnalysisProgress({ statusText, progressPercent, stats }: AnalysisProgressProps) {
+  const { t } = useTranslation();
+
   return (
     <div style={styles.container}>
       {/* Progress Info Header */}
@@ -41,7 +44,7 @@ export default function AnalysisProgress({ statusText, progressPercent, stats }:
           <User size={24} color="#3B82F6" />
           <div style={styles.cardData}>
             <div style={styles.cardVal}>{stats.persons}</div>
-            <div style={styles.cardLabel}>Persons Detected</div>
+            <div style={styles.cardLabel}>{t('vtest.progress.persons')}</div>
           </div>
         </div>
 
@@ -57,7 +60,7 @@ export default function AnalysisProgress({ statusText, progressPercent, stats }:
               ...styles.cardVal,
               color: stats.fires > 0 ? 'var(--color-danger)' : 'var(--color-text)'
             }}>{stats.fires}</div>
-            <div style={styles.cardLabel}>Fire Incidents</div>
+            <div style={styles.cardLabel}>{t('vtest.progress.fires')}</div>
           </div>
         </div>
 
@@ -66,7 +69,7 @@ export default function AnalysisProgress({ statusText, progressPercent, stats }:
           <Package size={24} color="#F59E0B" />
           <div style={styles.cardData}>
             <div style={styles.cardVal}>{stats.objects}</div>
-            <div style={styles.cardLabel}>Objects Detected</div>
+            <div style={styles.cardLabel}>{t('vtest.progress.objects')}</div>
           </div>
         </div>
 
@@ -75,7 +78,7 @@ export default function AnalysisProgress({ statusText, progressPercent, stats }:
           <Gauge size={24} color="#10B981" />
           <div style={styles.cardData}>
             <div style={styles.cardVal}>{stats.fps.toFixed(1)}</div>
-            <div style={styles.cardLabel}>Inference (FPS)</div>
+            <div style={styles.cardLabel}>{t('vtest.progress.fps')}</div>
           </div>
         </div>
       </div>
