@@ -2,6 +2,7 @@ import os
 import sys
 import logging
 import asyncio
+from typing import Optional
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
@@ -11,6 +12,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.
 from api.camera_routes import router as camera_router
 from services.health_checker import RtspHealthChecker
 from infrastructure.persistence.database import engine, AsyncSessionLocal
+from config.settings import settings
 
 logging.basicConfig(
     level=logging.INFO,
@@ -48,21 +50,34 @@ async def lifespan(app: FastAPI):
     await engine.dispose()
     logger.info("Camera service cleanup complete.")
 
+_is_prod = os.getenv("ENV", "development") == "production"
+
 # FastAPI instance definition
 app = FastAPI(
     title="Intelligent MCPT — Camera Service",
     description="Registers video stream paths and monitors camera feed connectivity in real time.",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    docs_url=None if _is_prod else "/docs",
+    redoc_url=None if _is_prod else "/redoc",
 )
 
 # Register endpoints
 app.include_router(camera_router, prefix="/api/v1")
 
+from sqlalchemy import text
+
 @app.get("/health", tags=["system"])
 async def health_check():
-    return {"status": "healthy", "service": "camera-service"}
+    """P3 #17: Verifies database connectivity for readiness probes."""
+    try:
+        async with AsyncSessionLocal() as session:
+            await session.execute(text("SELECT 1"))
+        return {"status": "healthy", "service": "camera-service", "db": "connected"}
+    except Exception:
+        return {"status": "degraded", "service": "camera-service", "db": "disconnected"}
 
 @app.get("/metrics", tags=["system"])
 async def metrics():
     return {"message": "Metrics placeholder for camera-service"}
+

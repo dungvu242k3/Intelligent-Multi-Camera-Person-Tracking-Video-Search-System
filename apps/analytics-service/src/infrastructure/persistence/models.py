@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Float, Integer, Boolean, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import declarative_base, relationship
@@ -14,8 +14,8 @@ class UserModel(Base):
     hashed_password = Column(String(255), nullable=False)
     role = Column(String(50), nullable=False, default="VIEWER")
     is_active = Column(Boolean, nullable=False, default=True)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class CameraModel(Base):
@@ -27,8 +27,8 @@ class CameraModel(Base):
     location = Column(String(255))
     status = Column(String(50), nullable=False, default="DISCONNECTED")
     fps = Column(Integer, default=30)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     tracking_events = relationship("TrackingEventModel", back_populates="camera", cascade="all, delete-orphan")
 
@@ -38,10 +38,10 @@ class PersonModel(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     display_name = Column(String(100))
-    first_seen = Column(DateTime(timezone=True), default=datetime.utcnow)
-    last_seen = Column(DateTime(timezone=True), default=datetime.utcnow)
+    first_seen = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    last_seen = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     total_appearances = Column(Integer, default=1)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     tracking_events = relationship("TrackingEventModel", back_populates="person")
 
@@ -59,7 +59,7 @@ class TrackingEventModel(Base):
     confidence = Column(Float, nullable=False)
     crop_path = Column(String(555))
     timestamp = Column(DateTime(timezone=True), nullable=False)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     camera = relationship("CameraModel", back_populates="tracking_events")
     person = relationship("PersonModel", back_populates="tracking_events")
@@ -74,7 +74,7 @@ class FireEventModel(Base):
     crop_path = Column(String(555))
     resolved = Column(Boolean, nullable=False, default=False)
     timestamp = Column(DateTime(timezone=True), nullable=False)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
 class AlertModel(Base):
@@ -89,4 +89,4 @@ class AlertModel(Base):
     person_id = Column(UUID(as_uuid=True), ForeignKey("persons.id", ondelete="SET NULL"))
     is_read = Column(Boolean, nullable=False, default=False)
     timestamp = Column(DateTime(timezone=True), nullable=False)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

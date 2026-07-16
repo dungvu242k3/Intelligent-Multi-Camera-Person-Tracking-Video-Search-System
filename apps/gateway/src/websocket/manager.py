@@ -4,23 +4,31 @@ from fastapi import WebSocket
 
 logger = logging.getLogger("gateway.websocket.manager")
 
+# P3 #18: Maximum concurrent WebSocket connections to prevent resource exhaustion
+MAX_CONNECTIONS = 500
+
+
 class ConnectionManager:
     """Manages active WebSocket connections at the API Gateway level."""
 
     def __init__(self) -> None:
         self.active_connections: List[WebSocket] = []
 
+    def can_accept(self) -> bool:
+        """Returns True if connection pool has capacity."""
+        return len(self.active_connections) < MAX_CONNECTIONS
+
     async def connect(self, websocket: WebSocket) -> None:
         """Accepts a new WebSocket connection and adds it to the active pool."""
         await websocket.accept()
         self.active_connections.append(websocket)
-        logger.info(f"New WebSocket connection accepted. Total active: {len(self.active_connections)}")
+        logger.info(f"New WebSocket connection accepted. Total active: {len(self.active_connections)}/{MAX_CONNECTIONS}")
 
     def disconnect(self, websocket: WebSocket) -> None:
         """Removes a closed/disconnected WebSocket from the active pool."""
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
-            logger.info(f"WebSocket disconnected. Total active: {len(self.active_connections)}")
+            logger.info(f"WebSocket disconnected. Total active: {len(self.active_connections)}/{MAX_CONNECTIONS}")
 
     @staticmethod
     async def send_personal_message(message: dict, websocket: WebSocket) -> None:

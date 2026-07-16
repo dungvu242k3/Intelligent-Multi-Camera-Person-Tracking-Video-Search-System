@@ -2,6 +2,7 @@ import os
 import sys
 import logging
 import asyncio
+from typing import Optional
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
@@ -103,21 +104,32 @@ async def lifespan(app: FastAPI):
     await engine.dispose()
     logger.info("Service cleanup completed.")
 
+_is_prod = os.getenv("ENV", "development") == "production"
+
 # FastAPI Application definition
 app = FastAPI(
     title="Intelligent MCPT — Analytics Service",
     description="Processes tracking telemetry events, updates person galleries, and triggers alerts.",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    docs_url=None if _is_prod else "/docs",
+    redoc_url=None if _is_prod else "/redoc",
 )
 
 # Mount API Routers
 app.include_router(tracking_router, prefix="/api/v1")
 
+from sqlalchemy import text
+
 @app.get("/health", tags=["system"])
 async def health_check():
-    """Simple check confirming container accessibility."""
-    return {"status": "healthy", "service": "analytics-service"}
+    """P3 #17: Verifies database connectivity for readiness probes."""
+    try:
+        async with AsyncSessionLocal() as session:
+            await session.execute(text("SELECT 1"))
+        return {"status": "healthy", "service": "analytics-service", "db": "connected"}
+    except Exception:
+        return {"status": "degraded", "service": "analytics-service", "db": "disconnected"}
 
 @app.get("/metrics", tags=["system"])
 async def metrics():

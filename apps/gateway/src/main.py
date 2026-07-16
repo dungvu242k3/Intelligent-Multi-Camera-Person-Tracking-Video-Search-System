@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 import time
+import uuid as uuid_lib
 from contextlib import asynccontextmanager
 from typing import Optional, Dict, Any, Tuple
 from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect, status
@@ -37,7 +38,11 @@ async def lifespan(app: FastAPI):
     """Lifecycle event manager mapping startup/shutdown states."""
     global async_client
     logger.info("Initializing API Gateway routing clients...")
-    async_client = httpx.AsyncClient(timeout=15.0)
+    # P1 #6: Configure httpx connection pool limits to prevent socket exhaustion
+    async_client = httpx.AsyncClient(
+        timeout=httpx.Timeout(10.0, connect=5.0),
+        limits=httpx.Limits(max_connections=200, max_keepalive_connections=50)
+    )
     
     yield
     
@@ -45,11 +50,16 @@ async def lifespan(app: FastAPI):
     if async_client:
         await async_client.aclose()
 
+_is_prod = settings.ENV == "production"
+
 app = FastAPI(
     title="Intelligent MCPT — API Gateway",
     description="Single entry point routing traffic and broadcasting WebSocket alert notifications.",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    # P0 #5: Disable OpenAPI docs in production to prevent schema leakage
+    docs_url=None if _is_prod else "/docs",
+    redoc_url=None if _is_prod else "/redoc",
 )
 
 # 1. CORS Configuration (Restricted based on Environment settings)
@@ -75,6 +85,15 @@ async def add_security_headers(request: Request, call_next):
     # Enforce HSTS (Strict-Transport-Security) in production TLS environments
     if os.getenv("HTTPS_ENFORCE", "false").lower() == "true":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
+# 2b. P3 #16: Request ID / Correlation ID Middleware
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    """Injects a unique X-Request-Id header for distributed tracing."""
+    request_id = request.headers.get("X-Request-Id", str(uuid_lib.uuid4()))
+    response = await call_next(request)
+    response.headers["X-Request-Id"] = request_id
     return response
 
 # 3. Payload Size Limit Middleware (DoS & Buffer Exhaustion prevention)
@@ -160,9 +179,11 @@ async def proxy_request(service: str, path: str, request: Request):
 
     # Enforce rate limiting threshold
     if not rate_limiter.check_rate_limit(client_ip):
+        # P3 #15: Include Retry-After header on 429 responses
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Rate limit threshold exceeded. Too many requests. Please try again later."
+            detail="Rate limit threshold exceeded. Too many requests. Please try again later.",
+            headers={"Retry-After": "60"}
         )
 
     # Enforce Auth Brute-Force lockout check on Login requests
@@ -175,7 +196,8 @@ async def proxy_request(service: str, path: str, request: Request):
                     logger.warning(f"Prevented login attempt: Client IP {client_ip} is currently locked out (Redis).")
                     raise HTTPException(
                         status_code=status.HTTP_423_LOCKED,
-                        detail="Too many failed login attempts. Your IP has been temporarily locked. Try again in 15 minutes."
+                        detail="Too many failed login attempts. Your IP has been temporarily locked. Try again in 15 minutes.",
+                        headers={"Retry-After": "900"}
                     )
             except HTTPException:
                 raise
@@ -188,7 +210,8 @@ async def proxy_request(service: str, path: str, request: Request):
                 logger.warning(f"Prevented login attempt: Client IP {client_ip} is currently locked out (In-Memory).")
                 raise HTTPException(
                     status_code=status.HTTP_423_LOCKED,
-                    detail="Too many failed login attempts. Your IP has been temporarily locked. Try again in 15 minutes."
+                    detail="Too many failed login attempts. Your IP has been temporarily locked. Try again in 15 minutes.",
+                    headers={"Retry-After": "900"}
                 )
 
     # Enforce authentication gate on non-public routes
@@ -199,6 +222,10 @@ async def proxy_request(service: str, path: str, request: Request):
     # Filter out client-specific host headers
     headers = dict(request.headers)
     headers.pop("host", None)
+
+    # P3 #16: Propagate correlation ID to downstream services
+    if "x-request-id" not in headers:
+        headers["x-request-id"] = str(uuid_lib.uuid4())
 
     if not is_public:
         auth_header = request.headers.get("Authorization")
@@ -271,7 +298,36 @@ async def proxy_request(service: str, path: str, request: Request):
 # 5. WebSocket Real-time Alert Broadcasts
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """Accepts and manages client WebSocket connections for real-time dashboard events."""
+    """Accepts and manages client WebSocket connections for real-time dashboard events.
+    P0 #4: Requires JWT token via query parameter for authentication.
+    """
+    # Validate JWT token from query parameter
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=4001, reason="Missing authentication token")
+        return
+    
+    try:
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM]
+        )
+        if payload.get("type") != "access":
+            await websocket.close(code=4001, reason="Invalid token type")
+            return
+    except jwt.ExpiredSignatureError:
+        await websocket.close(code=4001, reason="Token expired")
+        return
+    except jwt.InvalidTokenError:
+        await websocket.close(code=4001, reason="Invalid token")
+        return
+
+    # Check connection cap
+    if not manager.can_accept():
+        await websocket.close(code=4002, reason="Maximum connections reached")
+        return
+
     await manager.connect(websocket)
     try:
         while True:
@@ -289,8 +345,19 @@ class AlertPublishRequest(BaseModel):
     message: dict
 
 @app.post("/api/v1/alerts/publish", status_code=status.HTTP_200_OK, tags=["alerts"])
-async def publish_alert(payload: AlertPublishRequest):
-    """Receives internal alerts from processing services and broadcasts them to all WebSocket clients."""
+async def publish_alert(payload: AlertPublishRequest, request: Request):
+    """Receives internal alerts from processing services and broadcasts them to all WebSocket clients.
+    P0 #3: Protected by internal service API key — not accessible to external clients.
+    """
+    # Validate internal service-to-service API key
+    service_key = request.headers.get("X-Internal-Service-Key")
+    if service_key != settings.INTERNAL_SERVICE_KEY:
+        logger.warning("Unauthorized alert publish attempt detected.")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Internal service authentication failed. Invalid or missing X-Internal-Service-Key."
+        )
+
     event_message = {
         "event_type": payload.alert_type,
         "data": payload.message

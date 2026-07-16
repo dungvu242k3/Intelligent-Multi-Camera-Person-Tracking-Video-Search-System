@@ -1,7 +1,8 @@
 import logging
+import re
 from typing import Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 
 from config.settings import settings
@@ -13,7 +14,13 @@ logger = logging.getLogger("auth_service.api.auth_routes")
 router = APIRouter()
 
 # 1. Local Database setup for auth-service (async connection)
-engine = create_async_engine(settings.DATABASE_URL, echo=False)
+engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=False,
+    pool_size=10,
+    max_overflow=5,
+    pool_pre_ping=True
+)
 AsyncSessionLocal = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
 async def get_db() -> AsyncSession:
@@ -30,13 +37,24 @@ async def get_db() -> AsyncSession:
 # 2. Pydantic v2 I/O Schemas
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(..., min_length=1, max_length=128)
 
 class RegisterRequest(BaseModel):
     email: EmailStr
-    password: str
-    full_name: str
-    role_id: int = 2 # Default role: operator / standard user
+    password: str = Field(..., min_length=8, max_length=128)
+    full_name: str = Field(..., min_length=1, max_length=100, strip_whitespace=True)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_strength(cls, v: str) -> str:
+        """Enforces minimum password complexity: 1 uppercase, 1 lowercase, 1 digit."""
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not re.search(r"[a-z]", v):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not re.search(r"\d", v):
+            raise ValueError("Password must contain at least one digit")
+        return v
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -88,7 +106,7 @@ async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db))
         email=request.email,
         hashed_password=hashed_pwd,
         full_name=request.full_name,
-        role_id=request.role_id
+        role_id=2  # Hardcoded: standard user. Only admins can promote via separate endpoint.
     )
     
     db.add(new_user)

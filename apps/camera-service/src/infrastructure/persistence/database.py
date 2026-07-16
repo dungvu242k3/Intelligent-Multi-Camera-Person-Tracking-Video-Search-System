@@ -1,7 +1,7 @@
 import os
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from apps.camera-service.src.config.settings import settings
+from config.settings import settings
 
 # Create async engine optimized with pooling locally for camera-service
 engine = create_async_engine(
