@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from packages.domain.entities.person import Person
-from apps.analytics-service.src.infrastructure.persistence.models import PersonModel
+from infrastructure.persistence.models import PersonModel
 
 class SqlAlchemyPersonRepository:
     """SQLAlchemy Repository implementation handling Person entities."""

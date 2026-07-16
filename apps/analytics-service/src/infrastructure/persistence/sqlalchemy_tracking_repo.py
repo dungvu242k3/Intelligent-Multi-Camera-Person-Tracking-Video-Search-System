@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from packages.domain.entities.tracking_event import TrackingEvent, BoundingBox
-from apps.analytics-service.src.infrastructure.persistence.models import TrackingEventModel
+from infrastructure.persistence.models import TrackingEventModel
 
 class SqlAlchemyTrackingRepository:
     """SQLAlchemy Repository implementation handling TrackingEvent entities."""

@@ -2,8 +2,8 @@ import uuid
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from apps.analytics-service.src.infrastructure.persistence.database import get_db_session
-from apps.analytics-service.src.infrastructure.persistence.sqlalchemy_tracking_repo import SqlAlchemyTrackingRepository
+from infrastructure.persistence.database import get_db_session
+from infrastructure.persistence.sqlalchemy_tracking_repo import SqlAlchemyTrackingRepository
 from packages.contracts.dto.tracking import TrackingEventResponse, PersonTrailResponse
 
 router = APIRouter(prefix="/tracking", tags=["tracking"])
