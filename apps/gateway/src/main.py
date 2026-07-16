@@ -1,8 +1,9 @@
 import logging
 import os
 import sys
+import time
 from contextlib import asynccontextmanager
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
@@ -27,6 +28,10 @@ logger = logging.getLogger("gateway")
 # Persistent async HTTP client pool
 async_client: Optional[httpx.AsyncClient] = None
 
+# Local login brute-force lockout storage fallback
+# Structure: client_ip -> (failed_attempts_count, lockout_timestamp)
+gateway_lockouts: Dict[str, Tuple[int, float]] = {}
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifecycle event manager mapping startup/shutdown states."""
@@ -47,14 +52,52 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Enable CORS for React Frontend dashboard integrations
+# 1. CORS Configuration (Restricted based on Environment settings)
+cors_origins = os.getenv("CORS_ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 2. HTTP Security Headers Middleware (Anti-XSS, Anti-Clickjacking, CSP)
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none';"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    
+    # Enforce HSTS (Strict-Transport-Security) in production TLS environments
+    if os.getenv("HTTPS_ENFORCE", "false").lower() == "true":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
+# 3. Payload Size Limit Middleware (DoS & Buffer Exhaustion prevention)
+@app.middleware("http")
+async def limit_request_payload_size(request: Request, call_next):
+    # Retrieve content length header
+    content_length = request.headers.get("Content-Length")
+    if content_length:
+        try:
+            length = int(content_length)
+            # Route logic: restrict JSON payloads to 2MB, allow 250MB for video trial uploads
+            is_upload_route = "upload-video" in request.url.path or "test-video" in request.url.path
+            max_limit = 250 * 1024 * 1024 if is_upload_route else 2 * 1024 * 1024
+            
+            if length > max_limit:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=f"Request payload size exceeds permitted thresholds (Limit: {max_limit} bytes)."
+                )
+        except ValueError:
+            pass
+            
+    return await call_next(request)
 
 # Service mapping routing keys
 SERVICE_MAPPING = {
@@ -102,7 +145,7 @@ def verify_token(authorization_header: Optional[str]) -> Dict[str, Any]:
             detail="Invalid authorization token"
         )
 
-# 1. Reverse Proxy Routing Logic
+# 4. Reverse Proxy Routing Logic
 @app.api_route("/api/v1/{service}/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy_request(service: str, path: str, request: Request):
     """Generic reverse proxy forwarding client requests to downstream microservices."""
@@ -113,13 +156,40 @@ async def proxy_request(service: str, path: str, request: Request):
             detail=f"Downstream service '{service}' not registered in Gateway configurations."
         )
 
-    # Enforce rate limiting threshold
     client_ip = request.client.host if request.client else "unknown"
+
+    # Enforce rate limiting threshold
     if not rate_limiter.check_rate_limit(client_ip):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Rate limit threshold exceeded. Too many requests. Please try again later."
         )
+
+    # Enforce Auth Brute-Force lockout check on Login requests
+    if service == "auth" and path == "login":
+        lockout_key = f"lockout:login:{client_ip}"
+        if rate_limiter.redis_client:
+            try:
+                attempts = rate_limiter.redis_client.get(lockout_key)
+                if attempts and int(attempts) >= 5:
+                    logger.warning(f"Prevented login attempt: Client IP {client_ip} is currently locked out (Redis).")
+                    raise HTTPException(
+                        status_code=status.HTTP_423_LOCKED,
+                        detail="Too many failed login attempts. Your IP has been temporarily locked. Try again in 15 minutes."
+                    )
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"Error checking lockout key in Redis: {e}")
+        else:
+            # InMemory lockout check fallback
+            attempts, lock_until = gateway_lockouts.get(client_ip, (0, 0.0))
+            if attempts >= 5 and time.time() < lock_until:
+                logger.warning(f"Prevented login attempt: Client IP {client_ip} is currently locked out (In-Memory).")
+                raise HTTPException(
+                    status_code=status.HTTP_423_LOCKED,
+                    detail="Too many failed login attempts. Your IP has been temporarily locked. Try again in 15 minutes."
+                )
 
     # Enforce authentication gate on non-public routes
     is_public = False
@@ -155,6 +225,37 @@ async def proxy_request(service: str, path: str, request: Request):
             headers=headers,
             content=body
         )
+        
+        # Audit credentials verification results for brute-force lockouts
+        if service == "auth" and path == "login":
+            lockout_key = f"lockout:login:{client_ip}"
+            if response.status_code == status.HTTP_200_OK:
+                # Reset counters on success
+                if rate_limiter.redis_client:
+                    try:
+                        rate_limiter.redis_client.delete(lockout_key)
+                    except Exception:
+                        pass
+                else:
+                    gateway_lockouts.pop(client_ip, None)
+            elif response.status_code == status.HTTP_401_UNAUTHORIZED:
+                # Increment failed counts on bad password/email
+                if rate_limiter.redis_client:
+                    try:
+                        pipe = rate_limiter.redis_client.pipeline()
+                        pipe.incr(lockout_key)
+                        pipe.expire(lockout_key, 900)  # 15 mins block duration
+                        pipe.execute()
+                    except Exception as e:
+                        logger.error(f"Failed to increment Redis brute-force count: {e}")
+                else:
+                    attempts, lock_until = gateway_lockouts.get(client_ip, (0, 0.0))
+                    attempts += 1
+                    # Lock IP for 15 minutes if count >= 5
+                    lock_until = time.time() + 900 if attempts >= 5 else 0.0
+                    gateway_lockouts[client_ip] = (attempts, lock_until)
+                    logger.warning(f"Failed login attempt count for {client_ip}: {attempts}/5")
+        
         return Response(
             content=response.content,
             status_code=response.status_code,
@@ -167,7 +268,7 @@ async def proxy_request(service: str, path: str, request: Request):
             detail="Downstream service is currently offline or unreachable."
         )
 
-# 2. WebSocket Real-time Alert Broadcasts
+# 5. WebSocket Real-time Alert Broadcasts
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """Accepts and manages client WebSocket connections for real-time dashboard events."""
@@ -182,7 +283,7 @@ async def websocket_endpoint(websocket: WebSocket):
         logger.error(f"WebSocket exception encountered: {e}")
         manager.disconnect(websocket)
 
-# 3. Pydantic Alert Payload
+# 6. Pydantic Alert Payload
 class AlertPublishRequest(BaseModel):
     alert_type: str
     message: dict
