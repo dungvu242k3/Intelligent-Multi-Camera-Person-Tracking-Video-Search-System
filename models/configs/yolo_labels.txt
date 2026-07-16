@@ -1,0 +1,4 @@
+person
+fire
+smoke
+object

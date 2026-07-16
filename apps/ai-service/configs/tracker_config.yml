@@ -1,0 +1,30 @@
+# =====================================================================
+# DeepStream Tracker Configuration — NvDCF Tracker
+# =====================================================================
+
+%YAML:1.0
+---
+tracker-width: 640
+tracker-height: 384
+gpu-id: 0
+
+# [Tracker Algorithm Configuration]
+# 1: KLT, 2: NvDCF, 3: IOU
+trackerAlgorithm: 2 
+
+# [Feature Extraction Configuration]
+# Use Color Names (CN) and Histogram of Oriented Gradients (HOG)
+visualFeatureMethod: 1
+
+# [Data Association Configuration]
+# Maximum age of a lost target before termination (frames)
+maxTargetsPerStream: 100
+minDetectorConfidence: 0.25
+
+# [Target Management Parameters]
+probationAge: 3
+maxShadowTrackingAge: 30 # Keep tracking lost targets for 30 frames
+activeMinFPS: 15
+
+# [Search Region Configuration]
+searchRegionScale: 1.5
