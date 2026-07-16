@@ -1,0 +1,90 @@
+import React from 'react';
+
+export const videoTestPageStyles: Record<string, React.CSSProperties> = {
+  page: {
+    padding: '24px 32px',
+    maxWidth: '1200px',
+    margin: '0 auto',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '24px',
+  },
+  titleBlock: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    alignItems: 'flex-start',
+  },
+  titleGroup: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+  },
+  title: {
+    fontSize: '22px',
+    color: 'var(--color-text)',
+  },
+  subtitle: {
+    fontSize: '14px',
+    color: 'var(--color-text-secondary)',
+    maxWidth: '800px',
+    textAlign: 'left',
+  },
+  mainCard: {
+    width: '100%',
+    padding: '0',
+  },
+  tabsHeader: {
+    display: 'flex',
+    borderBottom: '1px solid var(--color-border)',
+    padding: '0 16px',
+  },
+  tabBtn: {
+    background: 'none',
+    border: 'none',
+    borderBottom: '2px solid transparent',
+    padding: '16px 20px',
+    fontSize: '14px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontFamily: 'var(--font-body)',
+    transition: 'all 150ms ease',
+  },
+  tabContent: {
+    padding: '24px 20px',
+  },
+  statusBanner: {
+    margin: '20px 20px 0 20px',
+    padding: '10px 14px',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+    border: '1px solid rgba(59, 130, 246, 0.24)',
+    color: 'var(--color-primary)',
+    fontSize: '13px',
+    fontWeight: 600,
+  },
+  errorBanner: {
+    margin: '20px 20px 0 20px',
+    padding: '10px 14px',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: 'var(--color-danger-bg)',
+    border: '1px solid rgba(239, 68, 68, 0.24)',
+    color: 'var(--color-danger)',
+    fontSize: '13px',
+    fontWeight: 600,
+  },
+  cancelBtn: {
+    margin: '0 20px 20px 20px',
+    alignSelf: 'flex-start',
+    padding: '8px 18px',
+    fontSize: '13px',
+  },
+  resetBtn: {
+    alignSelf: 'flex-start',
+    padding: '10px 20px',
+    fontSize: '13px',
+  },
+};

@@ -1,11 +1,14 @@
 import { Providers } from './providers.tsx';
 import { AppRouter } from './router.tsx';
+import ErrorBoundary from '../shared/components/common/ErrorBoundary.tsx';
 
 function App() {
   return (
-    <Providers>
-      <AppRouter />
-    </Providers>
+    <ErrorBoundary>
+      <Providers>
+        <AppRouter />
+      </Providers>
+    </ErrorBoundary>
   );
 }
 

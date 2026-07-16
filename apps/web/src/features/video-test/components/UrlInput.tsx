@@ -1,17 +1,18 @@
-import React, { useState } from 'react';
+import React, { memo, useCallback, useState } from 'react';
 import { Link2, AlertCircle } from 'lucide-react';
 import { useTranslation } from '../../../shared/hooks/useTranslation.ts';
+import { STREAM_URL_PATTERN } from '../constants.ts';
 
 interface UrlInputProps {
   onUrlSubmitted: (url: string) => void;
 }
 
-export default function UrlInput({ onUrlSubmitted }: UrlInputProps) {
+function UrlInput({ onUrlSubmitted }: UrlInputProps) {
   const { t } = useTranslation();
   const [url, setUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -21,24 +22,33 @@ export default function UrlInput({ onUrlSubmitted }: UrlInputProps) {
       return;
     }
 
-    const pattern = /^(rtsp:\/\/|http:\/\/|https:\/\/)/i;
-    if (!pattern.test(trimmed)) {
+    if (!STREAM_URL_PATTERN.test(trimmed)) {
       setError(t('vtest.url.errSchema'));
       return;
     }
 
     onUrlSubmitted(trimmed);
-  };
+  }, [onUrlSubmitted, t, url]);
+
+  const handleUrlChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setUrl(e.target.value);
+  }, []);
 
   return (
     <form onSubmit={handleSubmit} style={styles.form}>
+      <label htmlFor="video-url-input" style={styles.label}>
+        {t('vtest.tabUrl')}
+      </label>
       <div style={styles.inputContainer}>
         <Link2 size={20} color="var(--color-text-secondary)" style={styles.icon} />
         <input 
+          id="video-url-input"
           type="text" 
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={handleUrlChange}
           placeholder={t('vtest.url.placeholder')}
+          aria-invalid={!!error}
+          aria-describedby={error ? 'video-url-error' : undefined}
           style={styles.input}
         />
       </div>
@@ -48,7 +58,7 @@ export default function UrlInput({ onUrlSubmitted }: UrlInputProps) {
       </button>
 
       {error && (
-        <div style={styles.errorCard}>
+        <div style={styles.errorCard} role="alert" id="video-url-error">
           <AlertCircle size={20} color="var(--color-danger)" />
           <span style={styles.errorText}>{error}</span>
         </div>
@@ -56,6 +66,8 @@ export default function UrlInput({ onUrlSubmitted }: UrlInputProps) {
     </form>
   );
 }
+
+export default memo(UrlInput);
 
 const styles: Record<string, React.CSSProperties> = {
   form: {
@@ -73,6 +85,12 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 'var(--radius-md)',
     padding: '6px 12px',
     width: '100%',
+  },
+  label: {
+    fontSize: '12px',
+    fontWeight: 600,
+    color: 'var(--color-text)',
+    textTransform: 'uppercase',
   },
   icon: {
     marginRight: '12px',

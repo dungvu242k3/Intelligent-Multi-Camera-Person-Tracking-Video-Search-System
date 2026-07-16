@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, Mail, ShieldAlert, Globe, Eye, EyeOff, User, CheckCircle } from 'lucide-react';
 import { useTranslation } from '../../shared/hooks/useTranslation.ts';
-import axiosInstance from '../../shared/utils/axiosInstance.ts';
+import axiosInstance, { isHttpClientError } from '../../shared/utils/axiosInstance.ts';
 
 export default function RegisterPage() {
   const { t, locale, setLocale } = useTranslation();
@@ -19,6 +19,13 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const registerRequestRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      registerRequestRef.current?.abort();
+    };
+  }, []);
 
   const toggleLanguage = () => {
     setLocale(locale === 'en' ? 'vi' : 'en');
@@ -51,22 +58,30 @@ export default function RegisterPage() {
       return;
     }
 
+    registerRequestRef.current?.abort();
+    const controller = new AbortController();
+    registerRequestRef.current = controller;
     setIsLoading(true);
     try {
       await axiosInstance.post('/auth/register', {
         email: emailTrimmed,
         password,
-        full_name: nameTrimmed,
-        role_id: 2 // Hardcoded Operator role (Production protection layer)
+        full_name: nameTrimmed
+      }, {
+        signal: controller.signal,
       });
 
       setSuccess(t('auth.successRegister'));
       setTimeout(() => {
         navigate('/login');
       }, 1500);
-    } catch (err: any) {
-      if (err.response) {
-        const status = err.response.status;
+    } catch (err: unknown) {
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      if (isHttpClientError(err) && err.response) {
+        const { status } = err.response;
         if (status === 400) {
           setError(locale === 'en' ? 'Email address is already registered.' : 'Địa chỉ email này đã được đăng ký.');
         } else {
@@ -75,7 +90,13 @@ export default function RegisterPage() {
       } else {
         setError(t('error.generic'));
       }
-      setIsLoading(false);
+      if (!controller.signal.aborted) {
+        setIsLoading(false);
+      }
+    } finally {
+      if (registerRequestRef.current === controller) {
+        registerRequestRef.current = null;
+      }
     }
   };
 
@@ -105,7 +126,7 @@ export default function RegisterPage() {
 
         {/* Success Banner */}
         {success && (
-          <div style={styles.successBanner}>
+          <div style={styles.successBanner} role="status" id="register-success">
             <CheckCircle size={18} color="var(--color-success)" />
             <span style={styles.successText}>{success}</span>
           </div>
@@ -113,7 +134,7 @@ export default function RegisterPage() {
 
         {/* Errors Block */}
         {error && (
-          <div style={styles.errorBanner}>
+          <div style={styles.errorBanner} role="alert" id="register-error">
             <ShieldAlert size={18} color="var(--color-danger)" />
             <span style={styles.errorText}>{error}</span>
           </div>
@@ -122,15 +143,18 @@ export default function RegisterPage() {
         {/* Inputs Form */}
         <form onSubmit={handleRegisterSubmit} style={styles.form}>
           <div style={styles.inputGroup}>
-            <label style={styles.label}>{t('auth.fullName')}</label>
+            <label htmlFor="register-full-name" style={styles.label}>{t('auth.fullName')}</label>
             <div style={styles.inputWrapper}>
               <User size={16} color="var(--color-text-secondary)" style={styles.inputIcon} />
               <input 
+                id="register-full-name"
                 type="text" 
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="John Doe"
                 disabled={isLoading || !!success}
+                aria-invalid={!!error}
+                aria-describedby={error ? 'register-error' : success ? 'register-success' : undefined}
                 style={styles.input}
                 required
               />
@@ -138,15 +162,18 @@ export default function RegisterPage() {
           </div>
 
           <div style={styles.inputGroup}>
-            <label style={styles.label}>{t('auth.email')}</label>
+            <label htmlFor="register-email" style={styles.label}>{t('auth.email')}</label>
             <div style={styles.inputWrapper}>
               <Mail size={16} color="var(--color-text-secondary)" style={styles.inputIcon} />
               <input 
+                id="register-email"
                 type="email" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="operator@mcpt.secure"
                 disabled={isLoading || !!success}
+                aria-invalid={!!error}
+                aria-describedby={error ? 'register-error' : success ? 'register-success' : undefined}
                 style={styles.input}
                 required
               />
@@ -154,15 +181,18 @@ export default function RegisterPage() {
           </div>
 
           <div style={styles.inputGroup}>
-            <label style={styles.label}>{t('auth.password')}</label>
+            <label htmlFor="register-password" style={styles.label}>{t('auth.password')}</label>
             <div style={styles.inputWrapper}>
               <Lock size={16} color="var(--color-text-secondary)" style={styles.inputIcon} />
               <input 
+                id="register-password"
                 type={showPassword ? 'text' : 'password'} 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 disabled={isLoading || !!success}
+                aria-invalid={!!error}
+                aria-describedby={error ? 'register-error' : success ? 'register-success' : undefined}
                 style={styles.input}
                 required
               />
@@ -171,6 +201,7 @@ export default function RegisterPage() {
                 onClick={() => setShowPassword(!showPassword)}
                 style={styles.eyeBtn}
                 aria-label="Toggle password"
+                aria-pressed={showPassword}
               >
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
@@ -178,15 +209,18 @@ export default function RegisterPage() {
           </div>
 
           <div style={styles.inputGroup}>
-            <label style={styles.label}>{locale === 'en' ? 'Confirm Password' : 'Xác nhận mật khẩu'}</label>
+            <label htmlFor="register-confirm-password" style={styles.label}>{locale === 'en' ? 'Confirm Password' : 'Xác nhận mật khẩu'}</label>
             <div style={styles.inputWrapper}>
               <Lock size={16} color="var(--color-text-secondary)" style={styles.inputIcon} />
               <input 
+                id="register-confirm-password"
                 type={showConfirmPassword ? 'text' : 'password'} 
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"
                 disabled={isLoading || !!success}
+                aria-invalid={!!error}
+                aria-describedby={error ? 'register-error' : success ? 'register-success' : undefined}
                 style={styles.input}
                 required
               />
@@ -195,6 +229,7 @@ export default function RegisterPage() {
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                 style={styles.eyeBtn}
                 aria-label="Toggle confirm password"
+                aria-pressed={showConfirmPassword}
               >
                 {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
@@ -204,6 +239,7 @@ export default function RegisterPage() {
           <button 
             type="submit" 
             disabled={isLoading || !!success}
+            aria-busy={isLoading}
             className="btn-primary" 
             style={styles.submitBtn}
           >

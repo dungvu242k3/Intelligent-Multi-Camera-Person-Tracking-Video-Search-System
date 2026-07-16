@@ -1,19 +1,20 @@
-import React, { useState, useRef } from 'react';
+import React, { memo, useCallback, useRef, useState } from 'react';
 import { UploadCloud, FileVideo, AlertCircle } from 'lucide-react';
 import { useTranslation } from '../../../shared/hooks/useTranslation.ts';
+import { VIDEO_UPLOAD_CONSTRAINTS } from '../constants.ts';
 
 interface VideoUploaderProps {
   onFileSelected: (file: File) => void;
 }
 
-export default function VideoUploader({ onFileSelected }: VideoUploaderProps) {
+function VideoUploader({ onFileSelected }: VideoUploaderProps) {
   const { t } = useTranslation();
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleDrag = (e: React.DragEvent) => {
+  const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (e.type === "dragenter" || e.type === "dragover") {
@@ -21,47 +22,47 @@ export default function VideoUploader({ onFileSelected }: VideoUploaderProps) {
     } else if (e.type === "dragleave") {
       setDragActive(false);
     }
-  };
+  }, []);
 
-  const validateAndSelect = (file: File) => {
+  const validateAndSelect = useCallback((file: File) => {
     setError(null);
-    const validExtensions = ['.mp4', '.avi', '.mkv', '.mov'];
     const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
     
-    if (!validExtensions.includes(fileExtension)) {
+    if (!VIDEO_UPLOAD_CONSTRAINTS.acceptedExtensions.includes(fileExtension)) {
       setError(t('vtest.uploader.errFormat'));
       return;
     }
     
-    const maxLimit = 250 * 1024 * 1024; // 250MB limit
-    if (file.size > maxLimit) {
-      setError(`${t('vtest.uploader.errSize')} (${(file.size / (1024 * 1024)).toFixed(1)}MB)`);
+    if (file.size > VIDEO_UPLOAD_CONSTRAINTS.maxFileSizeBytes) {
+      setError(
+        `${t('vtest.uploader.errSize')} (${(file.size / VIDEO_UPLOAD_CONSTRAINTS.bytesPerMegabyte).toFixed(1)}MB)`
+      );
       return;
     }
 
     setSelectedFile(file);
     onFileSelected(file);
-  };
+  }, [onFileSelected, t]);
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       validateAndSelect(e.dataTransfer.files[0]);
     }
-  };
+  }, [validateAndSelect]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     e.preventDefault();
     if (e.target.files && e.target.files[0]) {
       validateAndSelect(e.target.files[0]);
     }
-  };
+  }, [validateAndSelect]);
 
-  const triggerInput = () => {
+  const triggerInput = useCallback(() => {
     inputRef.current?.click();
-  };
+  }, []);
 
   return (
     <div style={styles.container}>
@@ -77,11 +78,13 @@ export default function VideoUploader({ onFileSelected }: VideoUploaderProps) {
         onDrop={handleDrop}
       >
         <input 
+          id="video-file-input"
           ref={inputRef}
           type="file" 
           style={styles.hiddenInput}
-          accept="video/mp4,video/x-msvideo,video/x-matroska,video/quicktime"
+          accept={VIDEO_UPLOAD_CONSTRAINTS.acceptedMimeTypes}
           onChange={handleChange}
+          aria-describedby={error ? 'video-file-error' : selectedFile ? 'video-file-selected' : undefined}
         />
         
         <UploadCloud size={48} color={dragActive ? 'var(--color-primary)' : 'var(--color-text-secondary)'} />
@@ -89,22 +92,24 @@ export default function VideoUploader({ onFileSelected }: VideoUploaderProps) {
         <h3 style={styles.heading}>{t('vtest.uploader.title')}</h3>
         <p style={styles.subtext}>{t('vtest.uploader.sub')}</p>
         
-        <button type="button" onClick={triggerInput} className="btn-secondary" style={styles.btn}>
+        <button type="button" onClick={triggerInput} className="btn-secondary" style={styles.btn} aria-controls="video-file-input">
           {t('vtest.uploader.browse')}
         </button>
 
         {selectedFile && (
-          <div style={styles.fileCard}>
+          <div style={styles.fileCard} role="status" id="video-file-selected">
             <FileVideo size={20} color="var(--color-success)" />
             <div style={styles.fileDetails}>
               <div style={styles.fileName}>{selectedFile.name}</div>
-              <div style={styles.fileSize}>{(selectedFile.size / (1024 * 1024)).toFixed(1)} MB</div>
+              <div style={styles.fileSize}>
+                {(selectedFile.size / VIDEO_UPLOAD_CONSTRAINTS.bytesPerMegabyte).toFixed(1)} MB
+              </div>
             </div>
           </div>
         )}
 
         {error && (
-          <div style={styles.errorCard}>
+          <div style={styles.errorCard} role="alert" id="video-file-error">
             <AlertCircle size={20} color="var(--color-danger)" />
             <div style={styles.errorText}>{error}</div>
           </div>
@@ -113,6 +118,8 @@ export default function VideoUploader({ onFileSelected }: VideoUploaderProps) {
     </div>
   );
 }
+
+export default memo(VideoUploader);
 
 const styles: Record<string, React.CSSProperties> = {
   container: {

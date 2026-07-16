@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useCallback } from 'react';
 import { 
   ResponsiveContainer, 
   AreaChart, 
@@ -11,38 +11,26 @@ import {
 } from 'recharts';
 import { Download, CheckCircle, Clock, Eye, AlertTriangle } from 'lucide-react';
 import { useTranslation } from '../../../shared/hooks/useTranslation.ts';
-
-interface CropDetail {
-  id: string;
-  timestamp: string;
-  class_name: string;
-  confidence: number;
-  crop_url: string;
-}
-
-interface TimelineEntry {
-  second: number;
-  persons: number;
-  fires: number;
-  objects: number;
-}
+import { CropDetail, DetectionClass, TestSummary, TimelineEntry } from '../../../shared/types/videoTest.ts';
+import { testResultsStyles as styles } from './TestResults.styles.ts';
 
 interface TestResultsProps {
-  summary: {
-    persons: number;
-    fires: number;
-    objects: number;
-    fps: number;
-    elapsedSeconds: number;
-    totalFrames: number;
-  };
+  summary: TestSummary;
   timelineData: TimelineEntry[];
   crops: CropDetail[];
   onDownloadReport: () => void;
 }
 
-export default function TestResults({ summary, timelineData, crops, onDownloadReport }: TestResultsProps) {
+const chartMargin = { top: 10, right: 10, left: -20, bottom: 0 };
+const tooltipContentStyle = { backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' };
+const tooltipLabelStyle = { color: 'var(--color-text)', fontWeight: 600 };
+
+function TestResults({ summary, timelineData, crops, onDownloadReport }: TestResultsProps) {
   const { t } = useTranslation();
+  const handleCropImageError = useCallback((event: React.SyntheticEvent<HTMLImageElement>) => {
+    const seed = event.currentTarget.dataset.cropId || 'fallback';
+    event.currentTarget.src = `https://api.dicebear.com/7.x/identicon/svg?seed=${seed}`;
+  }, []);
 
   return (
     <div style={styles.container}>
@@ -60,7 +48,7 @@ export default function TestResults({ summary, timelineData, crops, onDownloadRe
           </div>
         </div>
         <button type="button" onClick={onDownloadReport} className="btn-primary" style={styles.downloadBtn}>
-          <Download size={16} />
+          <Download size={16} aria-hidden="true" />
           <span>{t('vtest.exportJson')}</span>
         </button>
       </div>
@@ -70,7 +58,7 @@ export default function TestResults({ summary, timelineData, crops, onDownloadRe
         <h3 style={styles.sectionTitle}>{t('vtest.results.chartTitle')}</h3>
         <div className="card" style={styles.chartCard}>
           <ResponsiveContainer width="100%" height={320}>
-            <AreaChart data={timelineData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+            <AreaChart data={timelineData} margin={chartMargin}>
               <defs>
                 <linearGradient id="colorPersons" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.4}/>
@@ -89,8 +77,8 @@ export default function TestResults({ summary, timelineData, crops, onDownloadRe
               <XAxis dataKey="second" stroke="#94A3B8" tickFormatter={(v) => `${v}s`} />
               <YAxis stroke="#94A3B8" />
               <Tooltip 
-                contentStyle={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
-                labelStyle={{ color: 'var(--color-text)', fontWeight: 600 }}
+                contentStyle={tooltipContentStyle}
+                labelStyle={tooltipLabelStyle}
               />
               <Legend />
               <Area type="monotone" name="Persons" dataKey="persons" stroke="#3B82F6" fillOpacity={1} fill="url(#colorPersons)" />
@@ -112,14 +100,12 @@ export default function TestResults({ summary, timelineData, crops, onDownloadRe
                   src={crop.crop_url} 
                   alt={crop.class_name} 
                   style={styles.cropImg}
-                  onError={(e) => {
-                    // Fallback visual mock avatar placeholder if minio is down
-                    e.currentTarget.src = `https://api.dicebear.com/7.x/identicon/svg?seed=${crop.id}`;
-                  }}
+                  data-crop-id={crop.id}
+                  onError={handleCropImageError}
                 />
                 <div style={{
                   ...styles.classBadge,
-                  backgroundColor: crop.class_name === 'fire' ? 'var(--color-danger)' : 'var(--color-primary)'
+                  backgroundColor: crop.class_name === DetectionClass.Fire ? 'var(--color-danger)' : 'var(--color-primary)'
                 }}>
                   {crop.class_name.toUpperCase()}
                 </div>
@@ -137,9 +123,9 @@ export default function TestResults({ summary, timelineData, crops, onDownloadRe
             </div>
           ))}
           {crops.length === 0 && (
-            <div style={styles.emptyGallery}>
-              <AlertTriangle size={28} color="var(--color-text-secondary)" />
-              <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>{t('vtest.results.emptyGallery')}</span>
+            <div style={styles.emptyGallery} role="status">
+              <AlertTriangle size={28} color="var(--color-text-secondary)" aria-hidden="true" />
+              <span style={styles.emptyText}>{t('vtest.results.emptyGallery')}</span>
             </div>
           )}
         </div>
@@ -148,122 +134,4 @@ export default function TestResults({ summary, timelineData, crops, onDownloadRe
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    width: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '28px',
-    padding: '16px 0',
-  },
-  successBanner: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '16px',
-    backgroundColor: 'var(--color-success-bg)',
-    border: '1px solid rgba(16, 185, 129, 0.2)',
-    borderRadius: 'var(--radius-lg)',
-    padding: '20px',
-  },
-  bannerText: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-  },
-  bannerHeading: {
-    fontSize: '16px',
-    fontWeight: 600,
-    color: 'var(--color-success)',
-  },
-  bannerSub: {
-    fontSize: '13px',
-    color: 'var(--color-text-secondary)',
-    marginTop: '4px',
-  },
-  downloadBtn: {
-    padding: '10px 20px',
-    fontSize: '13px',
-  },
-  section: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '12px',
-  },
-  sectionTitle: {
-    fontSize: '16px',
-    fontWeight: 600,
-    color: 'var(--color-text)',
-    fontFamily: 'var(--font-heading)',
-  },
-  chartCard: {
-    padding: '24px 16px 12px 16px',
-  },
-  cropsGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-    gap: '16px',
-  },
-  cropCard: {
-    backgroundColor: 'var(--color-surface)',
-    border: '1px solid var(--color-border)',
-    borderRadius: 'var(--radius-md)',
-    overflow: 'hidden',
-    boxShadow: 'var(--shadow-sm)',
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  imageWrapper: {
-    width: '100%',
-    height: '130px',
-    position: 'relative',
-    backgroundColor: '#0c1017',
-  },
-  cropImg: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'contain',
-  },
-  classBadge: {
-    position: 'absolute',
-    bottom: '8px',
-    left: '8px',
-    fontSize: '10px',
-    fontWeight: 700,
-    color: 'white',
-    padding: '4px 8px',
-    borderRadius: 'var(--radius-sm)',
-    fontFamily: 'var(--font-heading)',
-  },
-  cropMeta: {
-    padding: '12px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '6px',
-  },
-  cropTime: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    fontSize: '11px',
-    color: 'var(--color-text-secondary)',
-  },
-  cropConf: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    fontSize: '11px',
-    color: 'var(--color-text-secondary)',
-  },
-  emptyGallery: {
-    gridColumn: '1 / -1',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '10px',
-    padding: '40px',
-    backgroundColor: 'var(--color-surface)',
-    border: '1px dashed var(--color-border)',
-    borderRadius: 'var(--radius-lg)',
-  },
-};
+export default memo(TestResults);

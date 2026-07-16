@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, Mail, ShieldAlert, Globe, Eye, EyeOff, Activity } from 'lucide-react';
 import { useTranslation } from '../../shared/hooks/useTranslation.ts';
 import { useAuthStore } from '../../shared/stores/authStore.ts';
-import axiosInstance from '../../shared/utils/axiosInstance.ts';
+import axiosInstance, { isHttpClientError } from '../../shared/utils/axiosInstance.ts';
 
 export default function LoginPage() {
   const { t, locale, setLocale } = useTranslation();
@@ -16,6 +16,13 @@ export default function LoginPage() {
   
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const loginRequestRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      loginRequestRef.current?.abort();
+    };
+  }, []);
 
   const toggleLanguage = () => {
     setLocale(locale === 'en' ? 'vi' : 'en');
@@ -36,19 +43,28 @@ export default function LoginPage() {
       return;
     }
 
+    loginRequestRef.current?.abort();
+    const controller = new AbortController();
+    loginRequestRef.current = controller;
     setIsLoading(true);
     try {
       const res = await axiosInstance.post('/auth/login', {
         email: emailTrimmed,
         password
+      }, {
+        signal: controller.signal,
       });
 
       // Succeeds -> Write tokens to store
       login(res.data.access_token, res.data.refresh_token);
       navigate('/', { replace: true });
-    } catch (err: any) {
-      if (err.response) {
-        const status = err.response.status;
+    } catch (err: unknown) {
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      if (isHttpClientError(err) && err.response) {
+        const { status } = err.response;
         if (status === 401) {
           setError(t('error.401'));
         } else if (status === 423) {
@@ -62,7 +78,12 @@ export default function LoginPage() {
         setError(t('error.generic'));
       }
     } finally {
-      setIsLoading(false);
+      if (!controller.signal.aborted) {
+        setIsLoading(false);
+      }
+      if (loginRequestRef.current === controller) {
+        loginRequestRef.current = null;
+      }
     }
   };
 
@@ -92,7 +113,7 @@ export default function LoginPage() {
 
         {/* Errors Block */}
         {error && (
-          <div style={styles.errorBanner}>
+          <div style={styles.errorBanner} role="alert" id="login-error">
             <ShieldAlert size={18} color="var(--color-danger)" />
             <span style={styles.errorText}>{error}</span>
           </div>
@@ -101,15 +122,18 @@ export default function LoginPage() {
         {/* Inputs Form */}
         <form onSubmit={handleLoginSubmit} style={styles.form}>
           <div style={styles.inputGroup}>
-            <label style={styles.label}>{t('auth.email')}</label>
+            <label htmlFor="login-email" style={styles.label}>{t('auth.email')}</label>
             <div style={styles.inputWrapper}>
               <Mail size={16} color="var(--color-text-secondary)" style={styles.inputIcon} />
               <input 
+                id="login-email"
                 type="email" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="operator@mcpt.secure"
                 disabled={isLoading}
+                aria-invalid={!!error}
+                aria-describedby={error ? 'login-error' : undefined}
                 style={styles.input}
                 required
               />
@@ -117,15 +141,18 @@ export default function LoginPage() {
           </div>
 
           <div style={styles.inputGroup}>
-            <label style={styles.label}>{t('auth.password')}</label>
+            <label htmlFor="login-password" style={styles.label}>{t('auth.password')}</label>
             <div style={styles.inputWrapper}>
               <Lock size={16} color="var(--color-text-secondary)" style={styles.inputIcon} />
               <input 
+                id="login-password"
                 type={showPassword ? 'text' : 'password'} 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 disabled={isLoading}
+                aria-invalid={!!error}
+                aria-describedby={error ? 'login-error' : undefined}
                 style={styles.input}
                 required
               />
@@ -134,6 +161,7 @@ export default function LoginPage() {
                 onClick={() => setShowPassword(!showPassword)}
                 style={styles.eyeBtn}
                 aria-label="Toggle password visibility"
+                aria-pressed={showPassword}
               >
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
@@ -143,6 +171,7 @@ export default function LoginPage() {
           <button 
             type="submit" 
             disabled={isLoading}
+            aria-busy={isLoading}
             className="btn-primary" 
             style={styles.submitBtn}
           >

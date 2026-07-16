@@ -1,20 +1,38 @@
-import React from 'react';
+import React, { memo, useMemo } from 'react';
 import { User, Flame, Package, Gauge, RefreshCw } from 'lucide-react';
 import { useTranslation } from '../../../shared/hooks/useTranslation.ts';
+import { DetectionStats } from '../../../shared/types/videoTest.ts';
 
 interface AnalysisProgressProps {
   statusText: string;
   progressPercent: number;
-  stats: {
-    persons: number;
-    fires: number;
-    objects: number;
-    fps: number;
-  };
+  stats: DetectionStats;
 }
 
-export default function AnalysisProgress({ statusText, progressPercent, stats }: AnalysisProgressProps) {
+function AnalysisProgress({ statusText, progressPercent, stats }: AnalysisProgressProps) {
   const { t } = useTranslation();
+  const progressBarStyle = useMemo(
+    () => ({
+      ...styles.progressBarFill,
+      width: `${progressPercent}%`,
+    }),
+    [progressPercent]
+  );
+  const fireCardStyle = useMemo(
+    () => ({
+      ...styles.card,
+      borderColor: stats.fires > 0 ? 'var(--color-danger)' : 'var(--color-border)',
+      backgroundColor: stats.fires > 0 ? 'rgba(239, 68, 68, 0.05)' : 'var(--color-surface)',
+    }),
+    [stats.fires]
+  );
+  const fireValueStyle = useMemo(
+    () => ({
+      ...styles.cardVal,
+      color: stats.fires > 0 ? 'var(--color-danger)' : 'var(--color-text)',
+    }),
+    [stats.fires]
+  );
 
   return (
     <div style={styles.container}>
@@ -29,12 +47,7 @@ export default function AnalysisProgress({ statusText, progressPercent, stats }:
 
       {/* Progress Bar */}
       <div style={styles.progressBarBg}>
-        <div 
-          style={{
-            ...styles.progressBarFill,
-            width: `${progressPercent}%`
-          }}
-        ></div>
+        <div style={progressBarStyle}></div>
       </div>
 
       {/* Real-time Counters Grid */}
@@ -49,17 +62,10 @@ export default function AnalysisProgress({ statusText, progressPercent, stats }:
         </div>
 
         {/* Fires Count */}
-        <div style={{
-          ...styles.card,
-          borderColor: stats.fires > 0 ? 'var(--color-danger)' : 'var(--color-border)',
-          backgroundColor: stats.fires > 0 ? 'rgba(239, 68, 68, 0.05)' : 'var(--color-surface)',
-        }}>
+        <div style={fireCardStyle}>
           <Flame size={24} color={stats.fires > 0 ? 'var(--color-danger)' : 'var(--color-text-secondary)'} />
           <div style={styles.cardData}>
-            <div style={{
-              ...styles.cardVal,
-              color: stats.fires > 0 ? 'var(--color-danger)' : 'var(--color-text)'
-            }}>{stats.fires}</div>
+            <div style={fireValueStyle}>{stats.fires}</div>
             <div style={styles.cardLabel}>{t('vtest.progress.fires')}</div>
           </div>
         </div>
@@ -85,6 +91,8 @@ export default function AnalysisProgress({ statusText, progressPercent, stats }:
     </div>
   );
 }
+
+export default memo(AnalysisProgress);
 
 const styles: Record<string, React.CSSProperties> = {
   container: {

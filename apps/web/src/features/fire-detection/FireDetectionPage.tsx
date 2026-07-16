@@ -1,82 +1,87 @@
-import React, { useState, useEffect } from 'react';
+import { useCallback, useState } from 'react';
 import { Flame, Sparkles } from 'lucide-react';
 import { useTranslation } from '../../shared/hooks/useTranslation.ts';
+import { useWebSocket } from '../../shared/hooks/useWebSocket.ts';
+import { CameraNode, FireEvent, FireSeverity } from '../../shared/types/fireDetection.ts';
 import CameraMap from './components/CameraMap.tsx';
 import FireHistorySidebar from './components/FireHistorySidebar.tsx';
+import { fireDetectionPageStyles as styles } from './FireDetectionPage.styles.ts';
 
-interface CameraNode {
-  id: string;
-  name: string;
-  x: number;
-  y: number;
+interface FireAlertPayload {
+  event_type?: string;
+  data?: {
+    alert_id?: string;
+    camera_id?: string;
+    severity?: FireSeverity;
+  };
 }
 
-interface FireEvent {
-  id: string;
-  camera_id: string;
-  camera_name: string;
-  timestamp: string;
-  severity: 'CRITICAL' | 'WARNING' | 'RESOLVED';
+const FACILITY_CAMERAS: CameraNode[] = [
+  { id: 'cam_1', name: 'Main Lobby Entrance', x: 150, y: 220 },
+  { id: 'cam_2', name: 'Loading Dock A', x: 420, y: 150 },
+  { id: 'cam_3', name: 'Zone B Aisle 5', x: 420, y: 320 },
+  { id: 'cam_4', name: 'HQ Server Room', x: 670, y: 220 },
+];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function toFireAlertPayload(payload: unknown): FireAlertPayload | null {
+  if (!isRecord(payload)) {
+    return null;
+  }
+
+  const data = isRecord(payload.data) ? payload.data : {};
+  return {
+    event_type: typeof payload.event_type === 'string' ? payload.event_type : undefined,
+    data: {
+      alert_id: typeof data.alert_id === 'string' ? data.alert_id : undefined,
+      camera_id: typeof data.camera_id === 'string' ? data.camera_id : undefined,
+      severity:
+        data.severity === FireSeverity.Critical ||
+        data.severity === FireSeverity.Warning ||
+        data.severity === FireSeverity.Resolved
+          ? data.severity
+          : undefined,
+    },
+  };
 }
 
 export default function FireDetectionPage() {
   const { t } = useTranslation();
-  // Configured facility cameras list
-  const cameras: CameraNode[] = [
-    { id: 'cam_1', name: 'Main Lobby Entrance', x: 150, y: 220 },
-    { id: 'cam_2', name: 'Loading Dock A', x: 420, y: 150 },
-    { id: 'cam_3', name: 'Zone B Aisle 5', x: 420, y: 320 },
-    { id: 'cam_4', name: 'HQ Server Room', x: 670, y: 220 },
-  ];
 
   const [activeFires, setActiveFires] = useState<string[]>([]);
   const [events, setEvents] = useState<FireEvent[]>([]);
 
-  // Connect to Gateway WebSockets for real-time alerts
-  useEffect(() => {
-    const wsUrl = 'ws://localhost:8000/ws';
-    logger.info(`Opening WebSocket alert channel link: ${wsUrl}`);
-    const socket = new WebSocket(wsUrl);
+  const handleRealtimeMessage = useCallback((payload: unknown) => {
+    const alertPayload = toFireAlertPayload(payload);
 
-    socket.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        logger.info("Realtime alert packet consumed via WebSocket:", payload);
-        
-        // Match specific fire alarm events broadcasted from API Gateway
-        if (payload.event_type === 'fire_alarm' || payload.event_type === 'fire') {
-          const alertData = payload.data || {};
-          const camId = alertData.camera_id || 'cam_2';
-          const camName = cameras.find(c => c.id === camId)?.name || 'Unknown Zone';
-          
-          const newEvent: FireEvent = {
-            id: alertData.alert_id || `alarm-${Date.now()}`,
-            camera_id: camId,
-            camera_name: camName,
-            timestamp: new Date().toLocaleTimeString(),
-            severity: alertData.severity || 'CRITICAL'
-          };
+    if (!alertPayload || (alertPayload.event_type !== 'fire_alarm' && alertPayload.event_type !== 'fire')) {
+      return;
+    }
 
-          // Append to log and update map highlights
-          setEvents(prev => [newEvent, ...prev]);
-          setActiveFires(prev => prev.includes(camId) ? prev : [...prev, camId]);
-        }
-      } catch (e) {
-        logger.warning("Error parsing WebSocket event data stream payload:", e);
-      }
+    logger.info('Realtime alert packet consumed via WebSocket:', alertPayload);
+
+    const camId = alertPayload.data?.camera_id || 'cam_2';
+    const camName = FACILITY_CAMERAS.find((camera) => camera.id === camId)?.name || 'Unknown Zone';
+
+    const newEvent: FireEvent = {
+      id: alertPayload.data?.alert_id || `alarm-${Date.now()}`,
+      camera_id: camId,
+      camera_name: camName,
+      timestamp: new Date().toLocaleTimeString(),
+      severity: alertPayload.data?.severity || FireSeverity.Critical,
     };
 
-    socket.onclose = () => {
-      logger.warning("WebSocket alert channel connection closed.");
-    };
-
-    return () => {
-      socket.close();
-    };
+    setEvents((prev) => [newEvent, ...prev]);
+    setActiveFires((prev) => (prev.includes(camId) ? prev : [...prev, camId]));
   }, []);
 
+  useWebSocket({ onMessage: handleRealtimeMessage });
+
   const triggerMockAlarm = (cameraId: string) => {
-    const targetCam = cameras.find(c => c.id === cameraId);
+    const targetCam = FACILITY_CAMERAS.find(c => c.id === cameraId);
     if (!targetCam) return;
 
     logger.info(`Simulating fire alert for camera: ${targetCam.name}`);
@@ -86,7 +91,7 @@ export default function FireDetectionPage() {
       camera_id: cameraId,
       camera_name: targetCam.name,
       timestamp: new Date().toLocaleTimeString(),
-      severity: 'CRITICAL',
+      severity: FireSeverity.Critical,
     };
 
     // Update state to render UI changes immediately
@@ -96,14 +101,14 @@ export default function FireDetectionPage() {
 
   const handleResolveEvent = (id: string) => {
     setEvents((prev) => 
-      prev.map((e) => e.id === id ? { ...e, severity: 'RESOLVED' as const } : e)
+      prev.map((e) => e.id === id ? { ...e, severity: FireSeverity.Resolved } : e)
     );
     
     // Check if there are other active alerts remaining for this camera
     const resolvedEvent = events.find(e => e.id === id);
     if (resolvedEvent) {
       const remainingAlertsForCam = events.filter(
-        e => e.camera_id === resolvedEvent.camera_id && e.id !== id && e.severity !== 'RESOLVED'
+        e => e.camera_id === resolvedEvent.camera_id && e.id !== id && e.severity !== FireSeverity.Resolved
       );
       if (remainingAlertsForCam.length === 0) {
         setActiveFires((prev) => prev.filter(cId => cId !== resolvedEvent.camera_id));
@@ -134,7 +139,7 @@ export default function FireDetectionPage() {
 
           {/* Map Section */}
           <CameraMap 
-            cameras={cameras} 
+            cameras={FACILITY_CAMERAS} 
             activeFires={activeFires} 
             onCameraSelect={(id) => triggerMockAlarm(id)} 
           />
@@ -143,7 +148,7 @@ export default function FireDetectionPage() {
           <div className="card" style={styles.devCard}>
             <div style={styles.devHeading}>
               <Sparkles size={16} color="var(--color-primary)" />
-              <span style={{ fontSize: '13px', fontWeight: 600 }}>{t('fire.devControls')}</span>
+              <span style={styles.devHeadingText}>{t('fire.devControls')}</span>
             </div>
             <div style={styles.btnRow}>
               <button 
@@ -186,71 +191,6 @@ export default function FireDetectionPage() {
 
 // Logger utility wrapper for react scope
 const logger = {
-  info: (msg: string, details?: any) => console.log(`[INFO] ${msg}`, details || ''),
-  warning: (msg: string, details?: any) => console.warn(`[WARN] ${msg}`, details || '')
-};
-
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    width: '100%',
-  },
-  contentLayout: {
-    display: 'flex',
-    paddingRight: '320px', /* Sidebar offset */
-  },
-  mainPanel: {
-    flex: 1,
-    padding: '24px 32px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '24px',
-    maxWidth: '900px',
-    margin: '0 auto',
-  },
-  titleBlock: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-    alignItems: 'flex-start',
-  },
-  titleGroup: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-  },
-  title: {
-    fontSize: '22px',
-    color: 'var(--color-text)',
-  },
-  subtitle: {
-    fontSize: '14px',
-    color: 'var(--color-text-secondary)',
-    maxWidth: '800px',
-    textAlign: 'left',
-  },
-  devCard: {
-    padding: '16px 20px',
-    backgroundColor: 'rgba(30, 41, 59, 0.2)',
-    borderStyle: 'dashed',
-  },
-  devHeading: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    marginBottom: '12px',
-    color: 'var(--color-text-secondary)',
-  },
-  btnRow: {
-    display: 'flex',
-    gap: '12px',
-    flexWrap: 'wrap',
-  },
-  simBtn: {
-    padding: '8px 16px',
-    fontSize: '12px',
-  },
-  clearBtn: {
-    padding: '6px 14px',
-    fontSize: '12px',
-  },
+  info: (msg: string, details?: unknown) => console.log(`[INFO] ${msg}`, details || ''),
+  warning: (msg: string, details?: unknown) => console.warn(`[WARN] ${msg}`, details || '')
 };

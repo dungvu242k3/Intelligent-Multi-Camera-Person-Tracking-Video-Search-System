@@ -1,33 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Radio, Activity, Globe, LogOut } from 'lucide-react';
 import { useTranslation } from '../../hooks/useTranslation.ts';
 import { useAuthStore } from '../../stores/authStore.ts';
+import { useWebSocket } from '../../hooks/useWebSocket.ts';
 
 export default function Header() {
-  const [wsConnected, setWsConnected] = useState(false);
   const { locale, setLocale, t } = useTranslation();
   const { user, logout } = useAuthStore();
-
-  useEffect(() => {
-    // Check gateway websocket connectivity status
-    const socket = new WebSocket('ws://localhost:8000/ws');
-    
-    socket.onopen = () => {
-      setWsConnected(true);
-    };
-    
-    socket.onclose = () => {
-      setWsConnected(false);
-    };
-    
-    socket.onerror = () => {
-      setWsConnected(false);
-    };
-
-    return () => {
-      socket.close();
-    };
-  }, []);
+  const { isConnected: wsConnected } = useWebSocket();
 
   const toggleLanguage = () => {
     setLocale(locale === 'en' ? 'vi' : 'en');
@@ -56,7 +36,7 @@ export default function Header() {
         {/* WebSocket realtime indicator */}
         <div style={wsConnected ? styles.badgeActive : styles.badgeOffline}>
           <Radio size={14} className={wsConnected ? 'pulse-red-glow' : ''} />
-          <span style={styles.badgeText}>
+          <span style={styles.badgeText} role="status" aria-live="polite">
             {wsConnected ? t('header.realtimeConnected') : t('header.realtimeOffline')}
           </span>
         </div>
@@ -75,6 +55,7 @@ export default function Header() {
               onClick={logout} 
               style={styles.logoutBtn} 
               title={t('auth.logout')}
+              aria-label={t('auth.logout')}
             >
               <LogOut size={15} color="var(--color-danger)" />
             </button>

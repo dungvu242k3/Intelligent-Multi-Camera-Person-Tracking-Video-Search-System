@@ -1,8 +1,9 @@
 import logging
 import re
-from typing import Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Dict, Any, Optional
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from pydantic import BaseModel, EmailStr, Field, field_validator
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 
 from config.settings import settings
@@ -61,12 +62,30 @@ class TokenResponse(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
 
+class AccessTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+class RefreshRequest(BaseModel):
+    refresh_token: Optional[str] = None
+
 class TokenVerifyRequest(BaseModel):
     token: str
 
+def set_refresh_token_cookie(response: Response, refresh_token: str) -> None:
+    response.set_cookie(
+        key="mcpt_refresh_token",
+        value=refresh_token,
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        httponly=True,
+        secure=settings.ENV == "production",
+        samesite="lax",
+        path="/api/v1/auth",
+    )
+
 # 3. Router Endpoints
 @router.post("/login", response_model=TokenResponse)
-async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
+async def login(request: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
     """Authenticates user credentials and generates access/refresh tokens."""
     user = await AuthService.authenticate_user(db, request.email, request.password)
     if not user:
@@ -78,19 +97,63 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
     payload = {
         "sub": str(user.id),
         "email": user.email,
-        "role_id": user.role_id
+        "role_id": user.role_id,
+        "full_name": user.full_name,
     }
     
     access_token = TokenService.create_access_token(payload)
     refresh_token = TokenService.create_refresh_token({"sub": str(user.id)})
+    set_refresh_token_cookie(response, refresh_token)
     
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+
+@router.post("/refresh", response_model=AccessTokenResponse)
+async def refresh_token(
+    request: RefreshRequest,
+    response: Response,
+    mcpt_refresh_token: Optional[str] = Cookie(default=None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Rotates a valid refresh token and returns a fresh access token."""
+    token = mcpt_refresh_token or request.refresh_token
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing refresh token"
+        )
+
+    payload = TokenService.decode_and_verify_token(token)
+    if not payload or payload.get("type") != "refresh":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token is invalid or has expired"
+        )
+
+    stmt = select(User).where(User.id == payload.get("sub"), User.is_active == True)
+    result = await db.execute(stmt)
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token subject is no longer active"
+        )
+
+    access_payload = {
+        "sub": str(user.id),
+        "email": user.email,
+        "role_id": user.role_id,
+        "full_name": user.full_name,
+    }
+    access_token = TokenService.create_access_token(access_payload)
+    rotated_refresh_token = TokenService.create_refresh_token({"sub": str(user.id)})
+    set_refresh_token_cookie(response, rotated_refresh_token)
+
+    return AccessTokenResponse(access_token=access_token)
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db)):
     """Registers a new system user with hashed credentials."""
     # Check if email is already taken
-    from sqlalchemy import select
     stmt = select(User).where(User.email == request.email)
     result = await db.execute(stmt)
     existing_user = result.scalars().first()

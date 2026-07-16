@@ -9,24 +9,34 @@ export interface UserProfile {
 
 interface DecodedToken {
   sub: string;
-  email: string;
-  role_id: number;
+  email?: string;
+  role_id?: number;
   full_name?: string;
   exp?: number;
+  type?: 'access' | 'refresh';
 }
 
 interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;
   isAuthenticated: boolean;
+  isInitialized: boolean;
   user: UserProfile | null;
-  login: (accessToken: string, refreshToken: string) => void;
+  login: (accessToken: string, refreshToken?: string | null) => void;
+  setAccessToken: (accessToken: string, refreshToken?: string | null) => void;
+  getRefreshToken: () => string | null;
   logout: () => void;
   initAuth: () => void;
 }
 
+const ACCESS_TOKEN_STORAGE_KEY = 'mcpt_access_token';
+const LEGACY_REFRESH_TOKEN_STORAGE_KEY = 'mcpt_refresh_token';
+const TOKEN_EXPIRY_BUFFER_MS = 10_000;
+
+let inMemoryRefreshToken: string | null = null;
+
 // Custom dependency-free JWT decoder
-function decodeJwt(token: string): DecodedToken | null {
+export function decodeJwt(token: string): DecodedToken | null {
   try {
     const base64Url = token.split('.')[1];
     if (!base64Url) return null;
@@ -39,82 +49,116 @@ function decodeJwt(token: string): DecodedToken | null {
         .join('')
     );
     return JSON.parse(jsonPayload);
-  } catch (e) {
+  } catch {
     return null;
   }
 }
 
-function isTokenExpired(decoded: DecodedToken | null): boolean {
+export function isTokenExpired(decoded: DecodedToken | null, bufferMs = TOKEN_EXPIRY_BUFFER_MS): boolean {
   if (!decoded || !decoded.exp) return true;
-  // Account for a 10 seconds clock drift buffer
-  return decoded.exp * 1000 < (Date.now() + 10000);
+  return decoded.exp * 1000 - bufferMs <= Date.now();
+}
+
+export function isAccessTokenUsable(token: string | null, bufferMs = TOKEN_EXPIRY_BUFFER_MS): boolean {
+  const decoded = token ? decodeJwt(token) : null;
+  return !!decoded && decoded.type === 'access' && !isTokenExpired(decoded, bufferMs);
+}
+
+function buildUserProfile(decoded: DecodedToken): UserProfile | null {
+  if (!decoded.sub || !decoded.email || typeof decoded.role_id !== 'number') {
+    return null;
+  }
+
+  return {
+    id: decoded.sub,
+    email: decoded.email,
+    role_id: decoded.role_id,
+    full_name: decoded.full_name || decoded.email.split('@')[0],
+  };
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   accessToken: null,
   refreshToken: null,
   isAuthenticated: false,
+  isInitialized: false,
   user: null,
 
-  login: (accessToken: string, refreshToken: string) => {
-    localStorage.setItem('mcpt_access_token', accessToken);
-    localStorage.setItem('mcpt_refresh_token', refreshToken);
-    
-    const decoded = decodeJwt(accessToken);
-    if (decoded) {
-      set({
-        accessToken,
-        refreshToken,
-        isAuthenticated: true,
-        user: {
-          id: decoded.sub,
-          email: decoded.email,
-          role_id: decoded.role_id,
-          full_name: decoded.full_name || decoded.email.split('@')[0],
-        },
-      });
-    }
+  login: (accessToken: string, refreshToken?: string | null) => {
+    useAuthStore.getState().setAccessToken(accessToken, refreshToken);
   },
 
+  setAccessToken: (accessToken: string, refreshToken?: string | null) => {
+    const decoded = decodeJwt(accessToken);
+    const user = decoded?.type === 'access' ? buildUserProfile(decoded) : null;
+
+    if (!user || isTokenExpired(decoded)) {
+      useAuthStore.getState().logout();
+      return;
+    }
+
+    localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, accessToken);
+    localStorage.removeItem(LEGACY_REFRESH_TOKEN_STORAGE_KEY);
+
+    if (refreshToken) {
+      inMemoryRefreshToken = refreshToken;
+    }
+
+    set({
+      accessToken,
+      refreshToken: inMemoryRefreshToken,
+      isAuthenticated: true,
+      isInitialized: true,
+      user,
+    });
+  },
+
+  getRefreshToken: () => inMemoryRefreshToken,
+
   logout: () => {
-    localStorage.removeItem('mcpt_access_token');
-    localStorage.removeItem('mcpt_refresh_token');
+    inMemoryRefreshToken = null;
+    localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+    localStorage.removeItem(LEGACY_REFRESH_TOKEN_STORAGE_KEY);
     set({
       accessToken: null,
       refreshToken: null,
       isAuthenticated: false,
+      isInitialized: true,
       user: null,
     });
   },
 
   initAuth: () => {
-    const accessToken = localStorage.getItem('mcpt_access_token');
-    const refreshToken = localStorage.getItem('mcpt_refresh_token');
+    const accessToken = localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
+    const legacyRefreshToken = localStorage.getItem(LEGACY_REFRESH_TOKEN_STORAGE_KEY);
+    localStorage.removeItem(LEGACY_REFRESH_TOKEN_STORAGE_KEY);
 
-    if (accessToken && refreshToken) {
+    if (legacyRefreshToken) {
+      inMemoryRefreshToken = legacyRefreshToken;
+    }
+
+    if (accessToken && isAccessTokenUsable(accessToken)) {
       const decoded = decodeJwt(accessToken);
-      if (decoded && !isTokenExpired(decoded)) {
+      const user = decoded ? buildUserProfile(decoded) : null;
+
+      if (user) {
         set({
           accessToken,
-          refreshToken,
+          refreshToken: inMemoryRefreshToken,
           isAuthenticated: true,
-          user: {
-            id: decoded.sub,
-            email: decoded.email,
-            role_id: decoded.role_id,
-            full_name: decoded.full_name || decoded.email.split('@')[0],
-          },
+          isInitialized: true,
+          user,
         });
         return;
       }
     }
-    // Clean storage if expired or invalid
-    localStorage.removeItem('mcpt_access_token');
-    localStorage.removeItem('mcpt_refresh_token');
+
+    localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
     set({
       accessToken: null,
-      refreshToken: null,
+      refreshToken: inMemoryRefreshToken,
       isAuthenticated: false,
+      isInitialized: true,
       user: null,
     });
   },

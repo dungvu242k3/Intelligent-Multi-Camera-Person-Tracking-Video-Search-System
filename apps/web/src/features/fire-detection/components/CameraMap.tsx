@@ -1,12 +1,6 @@
 import { Camera } from 'lucide-react';
 import { useTranslation } from '../../../shared/hooks/useTranslation.ts';
-
-interface CameraNode {
-  id: string;
-  name: string;
-  x: number;
-  y: number;
-}
+import { CameraNode } from '../../../shared/types/fireDetection.ts';
 
 interface CameraMapProps {
   cameras: CameraNode[];

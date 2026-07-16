@@ -216,7 +216,7 @@ async def proxy_request(service: str, path: str, request: Request):
 
     # Enforce authentication gate on non-public routes
     is_public = False
-    if service == "auth" and path in ["login", "register", "verify"]:
+    if service == "auth" and path in ["login", "register", "verify", "refresh"]:
         is_public = True
 
     # Filter out client-specific host headers

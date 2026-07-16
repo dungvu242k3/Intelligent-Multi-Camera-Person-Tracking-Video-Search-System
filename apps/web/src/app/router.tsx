@@ -1,8 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { useAuthStore } from '../shared/stores/authStore.ts';
+import { refreshAccessToken } from '../shared/utils/axiosInstance.ts';
 import ProtectedRoute from '../shared/components/routes/ProtectedRoute.tsx';
 import MainLayout from '../shared/components/layout/MainLayout.tsx';
+import Spinner from '../shared/components/common/Spinner.tsx';
 import LoginPage from '../features/auth/LoginPage.tsx';
 import RegisterPage from '../features/auth/RegisterPage.tsx';
 import DashboardPage from '../features/dashboard/DashboardPage.tsx';
@@ -14,11 +16,26 @@ import FireDetectionPage from '../features/fire-detection/FireDetectionPage.tsx'
 
 export function AppRouter() {
   const { initAuth } = useAuthStore();
+  const [isBootstrappingAuth, setIsBootstrappingAuth] = useState(true);
 
   // Run initial local storage token decoding checks on boot
   useEffect(() => {
     initAuth();
+    const shouldRefresh = !useAuthStore.getState().isAuthenticated;
+
+    if (shouldRefresh) {
+      void refreshAccessToken().finally(() => {
+        setIsBootstrappingAuth(false);
+      });
+      return;
+    }
+
+    setIsBootstrappingAuth(false);
   }, [initAuth]);
+
+  if (isBootstrappingAuth) {
+    return <Spinner label="Restoring secure session" />;
+  }
 
   return (
     <BrowserRouter>

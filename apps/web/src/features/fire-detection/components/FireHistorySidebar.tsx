@@ -1,15 +1,7 @@
 import React from 'react';
 import { Flame, CheckCircle, Clock, MapPin, ShieldAlert } from 'lucide-react';
 import { useTranslation } from '../../../shared/hooks/useTranslation.ts';
-
-interface FireEvent {
-  id: string;
-  camera_id: string;
-  camera_name: string;
-  timestamp: string;
-  severity: 'CRITICAL' | 'WARNING' | 'RESOLVED';
-  crop_url?: string;
-}
+import { FireEvent, FireSeverity } from '../../../shared/types/fireDetection.ts';
 
 interface FireHistorySidebarProps {
   events: FireEvent[];
@@ -30,8 +22,8 @@ export default function FireHistorySidebar({ events, onResolveEvent }: FireHisto
       {/* Events Scroll Feed */}
       <div style={styles.list}>
         {events.map((event) => {
-          const isCritical = event.severity === 'CRITICAL';
-          const isResolved = event.severity === 'RESOLVED';
+          const isCritical = event.severity === FireSeverity.Critical;
+          const isResolved = event.severity === FireSeverity.Resolved;
           
           return (
             <div 
