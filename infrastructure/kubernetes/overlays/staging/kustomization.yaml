@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+namespace: mcpt-staging
+
+namePrefix: staging-
+
+images:
+  - name: mcpt-gateway
+    newName: registry.mcpt.com/staging/gateway
+    newTag: staging
+  - name: mcpt-web
+    newName: registry.mcpt.com/staging/web
+    newTag: staging
