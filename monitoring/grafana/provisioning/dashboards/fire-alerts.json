@@ -5,7 +5,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 2,
+  "id": 3,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -18,7 +18,7 @@
         "y": 0
       },
       "id": 1,
-      "title": "GPU Utilization (%)",
+      "title": "Fire Alarms Triggered",
       "type": "timeseries",
       "targets": [
         {
@@ -27,8 +27,8 @@
             "uid": "Prometheus"
           },
           "editorMode": "code",
-          "expr": "gpu_usage_percent",
-          "legendFormat": "GPU Usage",
+          "expr": "sum(increase(fire_alarms_total[5m]))",
+          "legendFormat": "Alarms",
           "range": true,
           "refId": "A"
         }
@@ -43,7 +43,7 @@
         "y": 0
       },
       "id": 2,
-      "title": "VRAM Utilization (MB)",
+      "title": "Alert Dispatched Latency (ms)",
       "type": "timeseries",
       "targets": [
         {
@@ -52,8 +52,8 @@
             "uid": "Prometheus"
           },
           "editorMode": "code",
-          "expr": "gpu_memory_used_bytes / 1024 / 1024",
-          "legendFormat": "VRAM Used",
+          "expr": "rate(fire_alert_dispatch_latency_seconds_sum[5m]) / rate(fire_alert_dispatch_latency_seconds_count[5m]) * 1000",
+          "legendFormat": "Avg Latency (ms)",
           "range": true,
           "refId": "A"
         }
@@ -68,7 +68,7 @@
         "y": 8
       },
       "id": 3,
-      "title": "AI Frame Processing Rate (FPS)",
+      "title": "Operator Alert Confirmations",
       "type": "timeseries",
       "targets": [
         {
@@ -77,8 +77,8 @@
             "uid": "Prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(rate(ai_pipeline_frames_processed_total[5m])) by (camera_id)",
-          "legendFormat": "FPS - Camera {{camera_id}}",
+          "expr": "sum(increase(fire_alert_operator_actions_total[5m])) by (action)",
+          "legendFormat": "Action: {{action}}",
           "range": true,
           "refId": "A"
         }
@@ -93,7 +93,7 @@
         "y": 8
       },
       "id": 4,
-      "title": "AI Detections (Cumulative)",
+      "title": "False Positive Rate (%)",
       "type": "timeseries",
       "targets": [
         {
@@ -102,8 +102,8 @@
             "uid": "Prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(increase(ai_detections_total[5m])) by (class_label)",
-          "legendFormat": "Detections: {{class_label}}",
+          "expr": "(sum(increase(fire_alert_operator_actions_total{action=\"dismiss\"}[5m])) / sum(increase(fire_alert_operator_actions_total[5m]))) * 100",
+          "legendFormat": "False Alarm Rate",
           "range": true,
           "refId": "A"
         }
@@ -112,11 +112,11 @@
   ],
   "schemaVersion": 36,
   "style": "dark",
-  "tags": ["ai", "pipeline", "mcpt"],
+  "tags": ["fire", "alerts", "mcpt"],
   "time": {
     "from": "now-1h",
     "to": "now"
   },
-  "title": "MCPT AI Pipeline Performance",
+  "title": "MCPT Fire Alerts & Dispatch Metrics",
   "version": 1
 }
