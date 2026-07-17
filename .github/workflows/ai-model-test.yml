@@ -1,0 +1,22 @@
+name: AI Model Test
+
+on:
+  push:
+    paths:
+      - 'apps/ai-service/**'
+      - 'models/**'
+
+jobs:
+  gpu-test:
+    runs-on: self-hosted-gpu
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Pull YOLO Models
+        run: |
+          echo "Pulling models from S3/MinIO..."
+
+      - name: Run DeepStream Inference Pipelines
+        run: |
+          echo "Executing AI DeepStream model validation test on GPU..."

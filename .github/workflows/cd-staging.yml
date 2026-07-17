@@ -1,0 +1,31 @@
+name: CD Staging
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Log in to Docker Registry
+        run: |
+          echo "Mock Docker Registry Login"
+
+      - name: Build and Push Staging Images
+        run: |
+          echo "Building gateway:staging..."
+          echo "Building auth-service:staging..."
+          echo "Building camera-service:staging..."
+          echo "Building search-service:staging..."
+          echo "Building analytics-service:staging..."
+          echo "Building notification-service:staging..."
+          echo "Building scheduler-service:staging..."
+          echo "Building web:staging..."
+
+      - name: Deploy to Staging Cluster
+        run: |
+          echo "Deploying overlays/staging to Kubernetes..."

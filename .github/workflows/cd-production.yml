@@ -1,0 +1,30 @@
+name: CD Production
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  deploy-production:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Extract Version Tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Log in to Docker Registry
+        run: |
+          echo "Mock Docker Registry Login"
+
+      - name: Build and Push Production Images
+        run: |
+          VERSION=${{ steps.get_version.outputs.VERSION }}
+          echo "Building production images with tag: $VERSION"
+
+      - name: Deploy to Production Cluster
+        run: |
+          echo "Deploying overlays/production to Kubernetes..."
