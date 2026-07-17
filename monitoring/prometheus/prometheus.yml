@@ -1,0 +1,53 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "rules/*.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - "alertmanager:9093"
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: "api-gateway"
+    static_configs:
+      - targets: ["gateway:8000"]
+
+  - job_name: "auth-service"
+    static_configs:
+      - targets: ["auth-service:8001"]
+
+  - job_name: "camera-service"
+    static_configs:
+      - targets: ["camera-service:8002"]
+
+  - job_name: "search-service"
+    static_configs:
+      - targets: ["search-service:8003"]
+
+  - job_name: "analytics-service"
+    static_configs:
+      - targets: ["analytics-service:8004"]
+
+  - job_name: "notification-service"
+    static_configs:
+      - targets: ["notification-service:8005"]
+
+  - job_name: "scheduler-service"
+    static_configs:
+      - targets: ["scheduler-service:8006"]
+
+  - job_name: "ai-service"
+    static_configs:
+      - targets: ["ai-service:8007"]
+
+  - job_name: "qdrant"
+    static_configs:
+      - targets: ["qdrant:6333"]

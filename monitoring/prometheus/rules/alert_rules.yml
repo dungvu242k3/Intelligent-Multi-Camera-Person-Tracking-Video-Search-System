@@ -1,0 +1,47 @@
+groups:
+  - name: system_alerts
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "The service {{ $labels.job }} has been down for more than 1 minute."
+
+      - alert: HighGPULoad
+        expr: gpu_usage_percent > 90
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High GPU usage detected on {{ $labels.instance }}"
+          description: "GPU utilization on {{ $labels.instance }} has exceeded 90% for more than 2 minutes."
+
+      - alert: HighVRAMUsage
+        expr: (gpu_memory_used_bytes / gpu_memory_total_bytes) * 100 > 90
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High VRAM usage detected on {{ $labels.instance }}"
+          description: "VRAM utilization on {{ $labels.instance }} has exceeded 90% for more than 2 minutes."
+
+      - alert: KafkaLagHigh
+        expr: sum by (group, topic) (kafka_consumergroup_lag) > 1000
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Kafka consumer lag detected"
+          description: "Consumer group {{ $labels.group }} on topic {{ $labels.topic }} has a lag of {{ $value }} messages."
+
+      - alert: FireAlertDetected
+        expr: sum by (camera_id) (increase(fire_detections_total[1m])) > 0
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Emergency: Fire detected on camera {{ $labels.camera_id }}!"
+          description: "The AI pipeline has detected fire/smoke on camera stream {{ $labels.camera_id }}."
