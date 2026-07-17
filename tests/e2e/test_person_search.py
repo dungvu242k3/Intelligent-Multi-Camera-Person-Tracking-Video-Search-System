@@ -1,3 +1,17 @@
+import sys
+import os
+
+# Setup paths
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../apps/search-service/src")))
+
+# Evict config/service modules to prevent collision
+for mod in ["api", "config", "services", "models", "events"]:
+    sys.modules.pop(mod, None)
+    for key in list(sys.modules.keys()):
+        if key.startswith(f"{mod}."):
+            sys.modules.pop(key, None)
+
 import pytest
 import uuid
 from unittest.mock import AsyncMock

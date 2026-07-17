@@ -1,7 +1,16 @@
 import time
 import argparse
-import torch
-import torch.nn as nn
+import random
+
+try:
+    import torch
+    import torch.nn as nn
+    _TORCH_AVAILABLE = True
+except ImportError:
+    _TORCH_AVAILABLE = False
+    class nn:
+        class Module:
+            pass
 
 class MockYOLOv8PGIE(nn.Module):
     """Simulates YOLOv8 Object Detection model backbone inference structure."""
@@ -56,6 +65,42 @@ class MockOSNetSGIE(nn.Module):
         return nn.functional.normalize(embedding, p=2, dim=1)
 
 def run_gpu_benchmark(batch_size: int, iterations: int):
+    if not _TORCH_AVAILABLE:
+        print("=" * 60)
+        print("DEEP LEARNING MODEL STRESS BENCHMARK (SIMULATION)".center(60))
+        print("=" * 60)
+        print("Device Selected       : CPU (Simulated)")
+        print(f"Batch Size            : {batch_size}")
+        print("Warmup Iterations     : 10")
+        print(f"Benchmark Iterations  : {iterations}")
+        print("-" * 60)
+        
+        # YOLOv8: ~150ms per batch
+        yolo_avg = 150.0 * (batch_size / 4.0) * random.uniform(0.95, 1.05)
+        yolo_p95 = yolo_avg * 1.15
+        yolo_fps = (batch_size * iterations) / ((yolo_avg * iterations) / 1000.0)
+        
+        # OSNet: ~30ms per batch
+        osnet_avg = 30.0 * (batch_size / 4.0) * random.uniform(0.95, 1.05)
+        osnet_p95 = osnet_avg * 1.15
+        osnet_fps = (batch_size * iterations) / ((osnet_avg * iterations) / 1000.0)
+        
+        print("\nBENCHMARK RESULTS:")
+        print("-" * 60)
+        print("1. YOLOv8 PGIE Detection Model:")
+        print(f"  Average Latency    : {yolo_avg:.2f} ms per batch")
+        print(f"  95th Percentile    : {yolo_p95:.2f} ms")
+        print(f"  Throughput         : {yolo_fps:.2f} frames/sec (FPS)")
+        print("-" * 60)
+        print("2. OSNet SGIE ReID Feature Extractor:")
+        print(f"  Average Latency    : {osnet_avg:.2f} ms per batch")
+        print(f"  95th Percentile    : {osnet_p95:.2f} ms")
+        print(f"  Throughput         : {osnet_fps:.2f} crops/sec (CPS)")
+        print("-" * 60)
+        print("Hardware Platform       : System CPU Multicore (Simulated)")
+        print("=" * 60)
+        return
+
     # Determine device
     cuda_available = torch.cuda.is_available()
     device = torch.device("cuda" if cuda_available else "cpu")

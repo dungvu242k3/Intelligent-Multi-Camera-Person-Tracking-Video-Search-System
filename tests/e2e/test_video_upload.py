@@ -9,11 +9,12 @@ sys.modules['asyncpg'] = MagicMock()
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../apps/camera-service/src")))
 
-# Evict config modules to prevent collision with other service tests
-sys.modules.pop("config.settings", None)
-sys.modules.pop("config", None)
-sys.modules.pop("api.camera_routes", None)
-sys.modules.pop("api", None)
+# Evict config/api modules to prevent collision with other service tests
+for mod in ["api", "config", "services", "models", "events"]:
+    sys.modules.pop(mod, None)
+    for key in list(sys.modules.keys()):
+        if key.startswith(f"{mod}."):
+            sys.modules.pop(key, None)
 sys.modules.pop("main", None)
 
 # Import security package and mock require_roles to bypass all auth checks

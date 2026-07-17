@@ -1,5 +1,18 @@
 import sys
+import os
 from unittest.mock import MagicMock
+
+# Setup paths
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../apps/ai-service/src")))
+
+# Evict config/event modules to prevent collision
+for mod in ["api", "config", "services", "models", "events"]:
+    sys.modules.pop(mod, None)
+    for key in list(sys.modules.keys()):
+        if key.startswith(f"{mod}."):
+            sys.modules.pop(key, None)
+
 sys.modules['cv2'] = MagicMock()
 
 from datetime import datetime, timezone  # noqa: E402
