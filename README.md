@@ -14,7 +14,7 @@ graph TD
     Cams[RTSP Camera Streams] -->|Video Feed| DS[DeepStream AI Pipeline]
     
     %% AI Pipeline
-    subgraph AI Pipeline (DeepStream & Triton)
+    subgraph "AI Pipeline (DeepStream & Triton)"
         DS -->|YOLOv8| Det[Object Detection]
         Det -->|ByteTrack| Track[Single Camera Tracking]
         Track -->|OSNet| ReID[ReID Vector Generation]
@@ -24,7 +24,7 @@ graph TD
     ReID -->|Publish Tracking Events| Kafka[Apache Kafka]
     
     %% Microservices
-    subgraph Backend Microservices (FastAPI)
+    subgraph "Backend Microservices (FastAPI)"
         Kafka -->|Consume| Analytics[Analytics Service]
         Kafka -->|Consume| Notification[Notification Service]
         
