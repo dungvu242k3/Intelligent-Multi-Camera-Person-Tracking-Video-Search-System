@@ -24,7 +24,6 @@ try:
         VectorParams,
         HnswConfigDiff,
         OptimizersConfigDiff,
-        QuantizationConfig,
         ScalarQuantization,
         ScalarQuantizationConfig,
         ScalarType,
@@ -110,13 +109,11 @@ def create_collection_if_missing(client: QdrantClient, cfg: dict) -> None:
             default_segment_number=2,
         ),
         # Scalar quantization reduces memory 4x with <1% accuracy drop
-        quantization_config=QuantizationConfig(
-            scalar=ScalarQuantization(
-                scalar=ScalarQuantizationConfig(
-                    type=ScalarType.INT8,
-                    quantile=0.99,
-                    always_ram=True,
-                )
+        quantization_config=ScalarQuantization(
+            scalar=ScalarQuantizationConfig(
+                type=ScalarType.INT8,
+                quantile=0.99,
+                always_ram=True,
             )
         ),
     )
@@ -135,7 +132,7 @@ def main() -> None:
     logger.info("Qdrant initialization complete. Collections:")
     for col in client.get_collections().collections:
         info = client.get_collection(col.name)
-        logger.info("  - %s: %d vectors", col.name, info.vectors_count or 0)
+        logger.info("  - %s: %d vectors", col.name, getattr(info, "points_count", 0))
 
 
 if __name__ == "__main__":

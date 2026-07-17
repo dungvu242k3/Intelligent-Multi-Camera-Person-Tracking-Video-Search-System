@@ -85,6 +85,7 @@ function VideoUploader({ onFileSelected }: VideoUploaderProps) {
           accept={VIDEO_UPLOAD_CONSTRAINTS.acceptedMimeTypes}
           onChange={handleChange}
           aria-describedby={error ? 'video-file-error' : selectedFile ? 'video-file-selected' : undefined}
+          aria-label="Upload Video File"
         />
         
         <UploadCloud size={48} color={dragActive ? 'var(--color-primary)' : 'var(--color-text-secondary)'} />

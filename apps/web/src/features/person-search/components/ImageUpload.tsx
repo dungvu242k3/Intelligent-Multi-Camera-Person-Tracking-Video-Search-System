@@ -99,6 +99,7 @@ export default function ImageUpload({ onSelectEmbedding, isLoading = false }: Im
           onChange={handleFileChange}
           accept="image/*"
           style={{ display: 'none' }}
+          aria-label="Upload Suspect Photo"
         />
         <Button
           variant="secondary"

@@ -58,19 +58,29 @@ class QdrantVectorStore:
     async def search_similar(self, embedding: List[float], limit: int = 5, score_threshold: float = 0.70) -> List[Dict[str, Any]]:
         await self._ensure_collection()
         try:
-            results = await self.client.search(
+            results = await self.client.query_points(
                 collection_name=self.collection_name,
-                query_vector=embedding,
+                query=embedding,
                 limit=limit,
                 score_threshold=score_threshold,
                 with_payload=True
             )
             
             matches = []
-            for res in results:
+            for res in results.points:
+                point_id = res.id
+                if isinstance(point_id, uuid.UUID):
+                    person_id = point_id
+                elif isinstance(point_id, str):
+                    person_id = uuid.UUID(point_id)
+                elif isinstance(point_id, int):
+                    person_id = uuid.UUID(int=point_id)
+                else:
+                    person_id = uuid.UUID(str(point_id))
+                
                 matches.append({
-                    "person_id": uuid.UUID(res.id),
-                    "score": float(res.score),
+                    "person_id": person_id,
+                    "score": res.score,
                     "payload": res.payload
                 })
             return matches
@@ -82,7 +92,7 @@ class QdrantVectorStore:
         """Deletes vector points corresponding to person_ids from Qdrant."""
         await self._ensure_collection()
         try:
-            string_ids = [str(pid) for pid in person_ids]
+            string_ids: List[str | int | uuid.UUID] = [str(pid) for pid in person_ids]
             await self.client.delete(
                 collection_name=self.collection_name,
                 points_selector=qmodels.PointIdsList(

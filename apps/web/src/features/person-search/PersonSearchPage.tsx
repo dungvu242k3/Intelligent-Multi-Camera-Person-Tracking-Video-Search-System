@@ -85,6 +85,7 @@ export default function PersonSearchPage() {
                 value={threshold}
                 onChange={(e) => setThreshold(Number(e.target.value))}
                 style={styles.slider}
+                aria-label="Similarity Threshold"
               />
             </div>
 
@@ -101,6 +102,7 @@ export default function PersonSearchPage() {
                 value={limit}
                 onChange={(e) => setLimit(Number(e.target.value))}
                 style={styles.slider}
+                aria-label="Max Match Count"
               />
             </div>
 
